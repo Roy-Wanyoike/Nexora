@@ -27,6 +27,8 @@ model User {
   virtualCards VirtualCard[]
   foreignAccounts ForeignAccount[]
   payrollRuns  PayrollRun[]
+  webhookEndpoints WebhookEndpoint[]
+  transactions Transaction[]
 }
 
 model ApiKey {
@@ -61,7 +63,20 @@ model Customer {
   virtualCards     VirtualCard[]
   foreignAccounts  ForeignAccount[]
 
+  // ── KYC / AML fields ──────────────────────────────────────────────
+  // BVN is stored ONLY as a SHA-256 hash; the raw 11-digit value is never persisted.
+  bvnHash        String?   @unique
+  bvnVerifiedAt  DateTime?
+  idType         String?   // nin | drivers_license | passport | voters_card
+  idNumber       String?
+  kycStatus      String    @default("unverified") // unverified | pending | verified | rejected
+  kycTier        Int       @default(0)             // 0 | 1 | 2 | 3
+  kycVerifiedAt  DateTime?
+  pepStatus      String?   // pep | non_pep | unknown
+  sanctionsStatus String?  // clear | match | unknown
+
   @@index([userId])
+  @@index([kycStatus])
 }
 
 // ===== Payments =====
@@ -77,6 +92,7 @@ model Payment {
   fees        Int      @default(0)
   customerId  String
   userId      String?  // owner (null for legacy shared demo data)
+  gatewayTxnId String? // PaySwitch/TheTeller transaction id
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -168,11 +184,15 @@ model Transaction {
   currency    String
   status      String   // succeeded | pending | failed
   description String?
+  userId      String?  // owner (null for legacy shared demo data)
   createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([type])
   @@index([status])
   @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 // ===== Payroll =====
@@ -195,6 +215,22 @@ model PayrollRun {
 }
 
 // ===== Webhooks =====
+
+model WebhookEndpoint {
+  id         String   @id @default(cuid())
+  userId     String
+  url        String
+  secret     String   // per-endpoint HMAC signing secret
+  enabled    Boolean  @default(true)
+  eventTypes String   // comma-separated list, e.g. "payment.succeeded,payout.paid"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([enabled])
+}
 
 model WebhookEvent {
   id            String    @id @default(cuid())

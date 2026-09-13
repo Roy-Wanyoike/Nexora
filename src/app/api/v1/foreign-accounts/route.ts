@@ -4,7 +4,7 @@ import {
   authenticate, errorResponse, okResponse, parseBody, randomId, getOrCreateDemoCustomer,
   checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
 } from "@/lib/api";
-import { createForeignAccountSchema } from "@/lib/schemas";
+import { createForeignAccountSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
 const BANKS: Record<string, { name: string; routingLabel: string }> = {
   USD: { name: "Nexora / Evolve", routingLabel: "routing_number" },
@@ -27,6 +27,52 @@ const RAILS: Record<string, string[]> = {
   CNY: ["cnaps", "cips"],
 };
 
+/** GET /api/v1/foreign-accounts — list accounts scoped to key.userId. */
+export async function GET(req: NextRequest) {
+  const key = await authenticate(req);
+  if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
+
+  const url = new URL(req.url);
+  const parsed = listTransactionsSchema.safeParse({
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+  });
+  if (!parsed.success) {
+    return errorResponse("Invalid pagination parameters", 422, "validation_error", { fields: formatZodError(parsed.error) });
+  }
+  const { limit, offset } = parsed.data;
+
+  const currency = url.searchParams.get("currency")?.toUpperCase() || undefined;
+
+  const [items, total] = await Promise.all([
+    db.foreignAccount.findMany({
+      where: { userId: key.userId, ...(currency ? { currency } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+    db.foreignAccount.count({ where: { userId: key.userId, ...(currency ? { currency } : {}) } }),
+  ]);
+
+  return okResponse({
+    object: "list",
+    has_more: offset + items.length < total,
+    url: "/v1/foreign-accounts",
+    data: items.map((a) => ({
+      id: `fac_${a.id.slice(-10)}`,
+      object: "foreign_account",
+      currency: a.currency,
+      account_name: a.accountName,
+      account_number: a.accountNumber,
+      routing_number: a.routingNumber,
+      bank_name: a.bankName,
+      supported_rails: RAILS[a.currency] || [],
+      status: a.status,
+      created_at: a.createdAt.toISOString(),
+    })),
+  });
+}
+
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
   if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
@@ -36,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createForeignAccountSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 
@@ -90,6 +136,6 @@ export async function POST(req: NextRequest) {
     created_at: acct.createdAt.toISOString(),
   };
 
-  await saveIdempotencyRecord(req, bodyHash, "POST /v1/foreign-accounts", { data: responseBody }, 200, key.userId);
-  return okResponse(responseBody);
+  await saveIdempotencyRecord(req, bodyHash, "POST /v1/foreign-accounts", { data: responseBody }, 201, key.userId);
+  return okResponse(responseBody, 201);
 }

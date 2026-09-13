@@ -1,24 +1,50 @@
 "use client";
 
+import Link from "next/link";
 import { Twitter, Instagram, Youtube, Facebook, Send } from "lucide-react";
 import { Logo } from "../logo";
 
-const COLS = [
+const COLS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Product",
-    links: ["Features", "Foreign Accounts", "Virtual Cards", "Crypto", "eSIM", "Business", "Pricing"],
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Foreign Accounts", href: "/#foreign" },
+      { label: "Virtual Cards", href: "/#cards" },
+      { label: "Crypto", href: "/#crypto" },
+      { label: "Business", href: "/#business" },
+      { label: "Pricing", href: "/#pricing" },
+    ],
   },
   {
     title: "Company",
-    links: ["About us", "Careers", "Press", "Blog", "Contact"],
+    links: [
+      { label: "About us", href: "/" },
+      { label: "Careers", href: "/" },
+      { label: "Press", href: "/" },
+      { label: "Blog", href: "/" },
+      { label: "Contact", href: "/" },
+    ],
   },
   {
     title: "Resources",
-    links: ["Help center", "Developer API", "Status", "Community", "Security"],
+    links: [
+      { label: "Help center", href: "/" },
+      { label: "Developer API", href: "/#developers" },
+      { label: "Status", href: "/" },
+      { label: "Community", href: "/" },
+      { label: "Security", href: "/" },
+    ],
   },
   {
     title: "Legal",
-    links: ["Terms of service", "Privacy policy", "Cookie policy", "Risk disclosure", "Compliance"],
+    links: [
+      { label: "Terms of service", href: "/terms" },
+      { label: "Privacy policy", href: "/privacy" },
+      { label: "Cookie policy", href: "/cookies" },
+      { label: "Risk disclosure", href: "/" },
+      { label: "Compliance", href: "/kyc" },
+    ],
   },
 ];
 
@@ -65,13 +91,13 @@ export function Footer() {
               <p className="text-sm font-semibold">{c.title}</p>
               <ul className="mt-3 flex flex-col gap-2">
                 {c.links.map((l) => (
-                  <li key={l}>
-                    <a
-                      href="#"
+                  <li key={l.label}>
+                    <Link
+                      href={l.href}
                       className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      {l}
-                    </a>
+                      {l.label}
+                    </Link>
                   </li>
                 ))}
               </ul>

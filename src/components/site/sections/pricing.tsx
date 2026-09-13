@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Check, Sparkles, Building2 } from "lucide-react";
 import { Section, SectionHeading } from "../section";
@@ -129,8 +130,8 @@ export function Pricing() {
               </span>
             </div>
 
-            <a
-              href="#app-demo"
+            <Link
+              href="/signup"
               className={`mt-5 inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${
                 t.highlight
                   ? "bg-gradient-to-r from-brand to-brand-2 text-primary-foreground shadow-[0_10px_30px_-12px_var(--brand)]"
@@ -138,7 +139,7 @@ export function Pricing() {
               }`}
             >
               {t.cta}
-            </a>
+            </Link>
 
             <ul className="mt-6 flex flex-col gap-2.5">
               {t.features.map((f) => (

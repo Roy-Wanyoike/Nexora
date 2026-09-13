@@ -34,6 +34,10 @@ const FAQS = [
     a: "Anyone in Nigeria aged 18 and over with a valid BVN can open a Personal account. Business accounts require CAC registration. We are rolling out to Ghana, Kenya, South Africa and the rest of Africa through 2026 — join the waitlist to be notified.",
   },
   {
+    q: "Why do I need to verify my BVN?",
+    a: "BVN verification is mandatory under the CBN Anti-Money Laundering, Combating the Financing of Terrorism and Countering Proliferation Financing (AML/CFT/CPF) Regulations 2022 for every payment service provider operating in Nigeria. We hash your BVN with SHA-256 before storage — we never see or persist the raw 11-digit value. Complete your Tier 1 KYC verification on the KYC page to unlock all payment methods, including foreign accounts, virtual cards, and crypto.",
+  },
+  {
     q: "Do you support crypto?",
     a: "Yes — you can buy, sell, send, receive and store USDC, USDT and PYUSD stablecoins inside the Nexa Pay app. You can convert stablecoins to NGN anytime. Crypto is volatile; only transact with funds you can afford to lose. Crypto services may not be regulated in your jurisdiction.",
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { ArrowRight, Apple, Play } from "lucide-react";
 import { Section } from "../section";
 
@@ -29,13 +30,13 @@ export function CTA() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <a
-              href="#app-demo"
+            <Link
+              href="/signup"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-brand to-brand-2 px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_14px_40px_-18px_var(--brand)] hover:opacity-95"
             >
               Get Started Free
               <ArrowRight className="h-4 w-4" />
-            </a>
+            </Link>
             <div className="flex gap-3">
               <a
                 href="#"

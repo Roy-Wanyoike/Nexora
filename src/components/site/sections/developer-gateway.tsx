@@ -536,8 +536,28 @@ function EndpointExplorer() {
   const [loading, setLoading] = useState(false);
 
   const ep = useMemo(() => ENDPOINTS.find((e) => e.id === epId)!, [epId]);
-  const apiKey = "nxp_test_8h2k9nbq01def456abc789";
-  const code = useMemo(() => buildCodeSample(lang, ep, apiKey), [lang, ep]);
+  const [apiKey, setApiKey] = useState<string>("");
+
+  // Fetch the sandbox key from the server on mount so no hardcoded key ships
+  // in the client bundle. The server reads from process.env.NEXORA_SANDBOX_KEY
+  // and falls back to the seeded demo key.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/v1/sandbox-key")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.data?.key) setApiKey(d.data.key);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const code = useMemo(
+    () => (apiKey ? buildCodeSample(lang, ep, apiKey) : ""),
+    [lang, ep, apiKey]
+  );
 
   const [response, setResponse] = useState<any>(null);
   const [respStatus, setRespStatus] = useState<number | null>(null);

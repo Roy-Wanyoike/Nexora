@@ -1,0 +1,135 @@
+[
+  {
+    "title": "Mobile horizontal scroll from dashboard sidebar",
+    "severity": "critical",
+    "area": "Live Demo dashboard / mobile layout",
+    "description": "On a 390px viewport (iPhone 14) the dashboard grid uses `grid md:grid-cols-[220px_1fr]` with no mobile column template, so the <aside> sidebar sizes itself to its content (804px wide, containing a row of 8 tab buttons) and overflows the viewport. document.documentElement.scrollWidth = 917px on a 390px viewport — the whole page becomes horizontally swipe-able and content is cut off on the right. Reproducible 100% of the time on mobile.",
+    "fix": "Add `grid-cols-1` (or `min-w-0` on the aside, plus `w-full overflow-hidden`) so the aside is constrained to the viewport on mobile and the inner `<nav>` actually scrolls horizontally instead of forcing the page to overflow."
+  },
+  {
+    "title": "Dashboard tabs lack tablist/tab ARIA semantics",
+    "severity": "critical",
+    "area": "Live Demo dashboard (Overview/Cards/Foreign/Crypto/eSIM/Bills/Business/Savings)",
+    "description": "All 8 'tab' buttons are plain <button onClick> elements. They have no role=\"tab\", no aria-selected, no aria-controls, no id, no tabIndex management, and the panel has no role=\"tabpanel\"/aria-labelledby. Screen readers announce them as generic buttons with no selected state; users cannot tell which tab is active. Same problem affects the Foreign-Accounts currency switcher (USD/GBP/EUR/CNY) and both language-tab groups (cURL/JS/Python/PHP/Go and Node.js/Python/PHP/Go/Ruby) — 17 'tab' buttons total. Arrow-key navigation between tabs also does not work (verified: pressing ArrowRight/ArrowLeft while focused on 'Overview' leaves focus on 'Overview').",
+    "fix": "Use the Radix Tabs primitive (already installed) instead of useState + <button>, OR manually add role=\"tablist\"/role=\"tab\"/role=\"tabpanel\", aria-selected, aria-controls, id, and implement roving-tabindex with ArrowLeft/ArrowRight/ Home/End keyboard handling per the WAI-ARIA Authoring Practices for tabs."
+  },
+  {
+    "title": "Touch targets far below 44×44px minimum",
+    "severity": "critical",
+    "area": "Global — header, dashboard, phone mock, language tabs, social icons",
+    "description": "101 of 140 interactive elements (72%) have a bounding box smaller than 44×44px. Verified offenders: phone-mock screen-switcher dots (5.7×6.1px), dashboard balance-visibility toggles (14×15px), language tab buttons (30×19px for 'Go' up to 67×19px for 'JavaScript'), theme toggle (36×36px), 'Sign in' link (45×20px), endpoint method badges (text-[10px] pills), footer social links (~24px icons). axe-core's target-size rule flagged 3 of the worst, but the problem is page-wide.",
+    "fix": "Add `min-h-[44px] min-w-[44px]` (or padding) to all icon-only and small text buttons, and ensure visual size ≥24px (AA) / ≥44px (AAA / 2.5.8 Enhanced). For pill/tab buttons, increase py-* padding so the tap area is at least 44px tall."
+  },
+  {
+    "title": "Muted-foreground text fails 4.5:1 contrast",
+    "severity": "high",
+    "area": "Global — endpoint paths, webhook descriptions, dashboard metadata, 'Menu' label, eyebrow text",
+    "description": "Computed contrast of --muted-foreground (lab 67.6 -3.81 -3.68) on --background (lab 3.58) is 3.31:1, and 3.30:1 on --card. WCAG 1.4.3 requires 4.5:1 for normal text and 3:1 for large text (≥18.66px bold). Most muted text is at 10–14px regular weight, so it fails normal-text threshold. axe-core did not flag this because the elements use translucent layered backgrounds (oklab(... / 0.3)) which axe cannot resolve.",
+    "fix": "Lighten --muted-foreground to e.g. oklch(0.78 0.01 250) (≈lab 78) which yields ≈4.6:1 on the dark bg, or scope a darker muted-text variant for ≥14px bold only."
+  },
+  {
+    "title": "No prefers-reduced-motion support — infinite marquee",
+    "severity": "high",
+    "area": "Testimonials marquee, CursorGlow, framer-motion entrance animations",
+    "description": "grep across src/ finds zero `prefers-reduced-motion` media queries. The testimonials marquee runs `animation: marquee 30s linear infinite` with no pause control, violating WCAG 2.2.2 (Pause/Stop/Hide — auto-moving content >5s must be pausable) and 2.3.3 (Animation from Interactions). CursorGlow also runs a requestAnimationFrame loop following the cursor without checking prefers-reduced-motion. Many `motion.div` elements use `whileInView` entrance animations that also never disable.",
+    "fix": "Add a global `@media (prefers-reduced-motion: reduce) { .marquee { animation: none } * { transition: none !important; animation: none !important } }` block, or use framer-motion's `useReducedMotion()` hook to gate animations, and pause the marquee on hover/focus."
+  },
+  {
+    "title": "Dead interactive buttons on homepage sections",
+    "severity": "high",
+    "area": "Crypto (Buy/Sell/Swap/Send), Foreign Accounts (Top Up/Cash Out/Transfer), Bills (Pay now x4), Newsletter (Subscribe)",
+    "description": "Verified by clicking each button and observing no toast/dialog/state change, and by grepping source: bills.tsx, crypto.tsx, virtual-cards.tsx, esim.tsx, savings.tsx have zero onClick handlers. Crypto Buy (145×55px button) — nothing happens. Foreign 'Top Up' — nothing. Bills 'Pay now' (4 buttons) — nothing. Footer 'Subscribe' (after entering email) — nothing. The dashboard equivalents work, but the homepage sections set false expectations.",
+    "fix": "Either wire these buttons to a real action (toast, modal, or sign-up CTA), or convert them to non-interactive elements (e.g., `<div role=\"presentation\">`) so users don't expect a response. At minimum, add a 'coming soon' tooltip via `title` or `aria-describedby`."
+  },
+  {
+    "title": "Duplicate accessible names on many interactive elements",
+    "severity": "high",
+    "area": "Developer Gateway, Bills section, footer, dashboard",
+    "description": "Screen-reader users navigating by element name hear the same label multiple times with no way to distinguish them. Counts: 'Copy' ×5, 'Prefix' ×5, 'Revoke key' ×5 (API keys table), 'Pay now' ×4 (Bills section), 'social link' ×4 (footer social icons — meaningless label), 'Pay' ×3 (dashboard Bills), 'Get Started Free' ×3, 'Crypto'/'Business'/'eSIM' ×3 each (nav + tab + footer). The 4 'social link' icons are completely opaque — there's no way to know which is X vs LinkedIn vs Instagram.",
+    "fix": "Add unique `aria-label` per button using context, e.g. 'Copy cURL command', 'Revoke key nxp_test_8h2k9…', 'Pay MTN ₦2,000', 'Follow Nexa Pay on X', 'Follow on LinkedIn', etc."
+  },
+  {
+    "title": "Heading level skipped (h2 → h4) in Developer Gateway",
+    "severity": "high",
+    "area": "Developer Gateway → Endpoint Explorer detail panel",
+    "description": "axe-core flagged heading-order (moderate). The section heading is `<h2>Build on the Nexa Pay API</h2>`, and the endpoint-detail title is `<h4 className='mt-2 text-sm font-semibold'>{ep.title}</h4>` (line 635 of developer-gateway.tsx) — skipping h3. Screen-reader users navigating by headings cannot anticipate the structure.",
+    "fix": "Change the endpoint-detail title from <h4> to <h3>, or insert an <h3> between the section h2 and the detail h4."
+  },
+  {
+    "title": "No skip-to-main-content link",
+    "severity": "medium",
+    "area": "Global page header",
+    "description": "The first keyboard tab lands on the logo link, then walks through 8 nav links, theme toggle, Sign in, Get Started — before reaching main content. There is no `<a href='#main' className='sr-only focus:not-sr-only'>Skip to main content</a>` link. WCAG 2.4.1 (Bypass Blocks) requires a way to skip repetitive navigation.",
+    "fix": "Add a skip link as the first focusable element on the page, target `#main` (the <main> already exists), visible on focus."
+  },
+  {
+    "title": "Newsletter email input has no programmatic label",
+    "severity": "medium",
+    "area": "Footer newsletter form",
+    "description": "The email input is `<input placeholder='Your email' />` with no <label>, no aria-label, and no aria-labelledby. Placeholder is not a label. WCAG 3.3.2 (Labels or Instructions) and 1.3.1 fail. Additionally, the Subscribe button has no onSubmit handler — the form is non-functional (also flagged in dead-buttons issue).",
+    "fix": "Add `<label htmlFor='newsletter-email' className='sr-only'>Email address</label>` with `id='newsletter-email'` on the input, or `aria-label='Email address'` on the input. Wire the form's onSubmit to show a success toast."
+  },
+  {
+    "title": "Two <nav> landmarks without distinguishing aria-label",
+    "severity": "medium",
+    "area": "Header nav + footer nav",
+    "description": "axe-core flagged landmark-unique (moderate). There are two <nav> elements with identical role and no aria-label, so screen readers list them as 'navigation: 2' with no way to differentiate 'Primary' vs 'Footer'.",
+    "fix": "Add `aria-label='Primary'` to the header <nav> and `aria-label='Footer'` to the footer <nav>."
+  },
+  {
+    "title": "Section scroll-margin-top:0 — sticky header hides section anchor",
+    "severity": "medium",
+    "area": "All section navigation (Features, Cards, Foreign, Crypto, Business, Live Demo, Developers, Pricing, FAQ)",
+    "description": "All <section> elements have `scroll-margin-top: 0px`. The header is `position: fixed` and 65px tall. After clicking any nav link (or loading /#app-demo), the section's top edge sits at viewport y=0, hidden behind the header. The 'Live Demo' eyebrow text ends up at viewport y=65 — right at the header's bottom edge. Verified: document.querySelector('#app-demo').getBoundingClientRect().top === 0 after navigating to #app-demo.",
+    "fix": "Add `scroll-margin-top: 5rem` (or 80px) to all [id] sections, e.g. `section[id] { scroll-margin-top: 80px; }` in globals.css."
+  },
+  {
+    "title": "Scrollable <pre> code blocks not keyboard accessible",
+    "severity": "medium",
+    "area": "Developer Gateway — Request body, Code sample, Response, Webhook payload, Verify signature",
+    "description": "axe-core flagged scrollable-region-focusable (serious). The code blocks use `max-h-72 overflow-auto` (and max-h-64 / max-h-56) but have no `tabindex='0'` and no `role='region'` + `aria-label`. Keyboard-only users cannot scroll horizontally/vertically to read code that overflows the box (long cURL commands, JSON bodies, etc.).",
+    "fix": "Add `tabIndex={0}` and an `aria-label` (e.g. 'Request body JSON', 'Code sample — cURL') to each scrollable <pre>, or wrap them in a focusable container."
+  },
+  {
+    "title": "Tiny 10–11px text in 136+ elements",
+    "severity": "medium",
+    "area": "Developer Gateway (endpoint paths, method badges, response labels), Foreign Accounts (account metadata), dashboard (currency labels, account numbers, timestamps)",
+    "description": "136 leaf elements have computed font-size ≤11px (text-[10px] or text-[11px]). Examples: endpoint paths '/v1/payroll/runs' (10px regular), webhook event descriptions (11px), 'Menu' label (10px), account-number field labels (10px), language-tab buttons (10px). 10px is below readable threshold for many users with low vision; combined with the muted-foreground contrast issue (3.31:1), the text is effectively unreadable for those users. WCAG 1.4.4 (Resize Text) is technically met (zoom works) but 1.4.12 (Text Spacing) and readability best practices are not.",
+    "fix": "Set a minimum font size of 12px (preferably 14px for body text). Replace `text-[10px]` with `text-xs` (12px) or `text-[11px]` with `text-xs`, especially for anything users must read (paths, codes, timestamps)."
+  },
+  {
+    "title": "Focus indicator is only 1px at 30% opacity",
+    "severity": "medium",
+    "area": "Global — all interactive elements",
+    "description": "When tabbing through the page, the focused element shows `outline: auto 1px oklab(0.88 -0.15 0.10 / 0.3)` — a 1px outline at 30% opacity. WCAG 2.2 SC 1.4.11 (Focus Appearance) requires the focus indicator to be at least 2 CSS pixels thick and have ≥3:1 contrast against adjacent colors. The current 1px / 30%-opacity outline is too thin and too faint.",
+    "fix": "Override the default focus ring with `outline: 2px solid var(--ring); outline-offset: 2px;` for `:focus-visible` on all interactive elements, or use `ring-2 ring-ring ring-offset-2` Tailwind utilities."
+  },
+  {
+    "title": "Primary CTAs misleading — all route to #app-demo",
+    "severity": "medium",
+    "area": "Header ('Sign in', 'Get Started'), hero ('Get Started Free', 'See the App'), pricing, final CTA",
+    "description": "Verified hrefs: 'Sign in' → #app-demo, 'Get Started' → #app-demo, 'Get Started Free' → #app-demo (×3 instances), 'See the App' → #app-demo. There is no real authentication, sign-up, or app onboarding flow — clicking 'Sign in' just scrolls to the demo dashboard. 'Read full docs', 'App Store', 'Google Play' all point to dead '#' links.",
+    "fix": "Either implement real routes (/login, /signup, /docs, real app-store URLs) or relabel the buttons to set correct expectations (e.g. 'Try the demo', 'View dashboard'). At minimum, replace '#' hrefs with real external URLs or `aria-disabled` placeholder buttons."
+  },
+  {
+    "title": "Duplicate id=\"nxg\" on SVG <linearGradient>",
+    "severity": "low",
+    "area": "Logo SVG (rendered in both header and footer)",
+    "description": "Two SVG <linearGradient> elements share id=\"nxg\" — one in the header logo, one in the footer logo. Duplicate IDs are invalid HTML (id must be unique) and can cause getElementById('#nxg') / url(#nxg) references to resolve to the wrong element if SVGs are merged or re-rendered. Found via `Array.from(document.querySelectorAll('[id]')).map(e=>e.id).filter((id,i,all)=>all.indexOf(id)!==i)`.",
+    "fix": "Generate a unique ID per logo instance (e.g. useId() in React) or rename the second one to 'nxg-footer'."
+  },
+  {
+    "title": "<aside> nested inside <main> landmark",
+    "severity": "low",
+    "area": "Live Demo dashboard sidebar",
+    "description": "axe-core flagged landmark-complementary-is-top-level (moderate). The dashboard sidebar `<aside>` is nested inside <main>. Per ARIA, complementary landmarks should be top-level so screen-reader users can jump to them directly. Currently the sidebar is read as part of main content.",
+    "fix": "Move the <aside> outside <main>, or keep it inside but convert it from <aside> to a plain <div role='navigation' aria-label='Dashboard sections'> since it's actually a secondary nav, not a complementary sidebar."
+  },
+  {
+    "title": "CursorGlow motion not gated by prefers-reduced-motion",
+    "severity": "low",
+    "area": "Global cursor glow effect",
+    "description": "CursorGlow (src/components/site/cursor-glow.tsx) correctly checks `(pointer: coarse)` to disable on touch devices, but never checks `prefers-reduced-motion: reduce`. The requestAnimationFrame loop continuously interpolates the glow position toward the cursor, which can trigger motion sickness in users with vestibular disorders. WCAG 2.3.3 (Animation from Interactions).",
+    "fix": "Add `if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.style.display = 'none'; return; }` at the top of the useEffect, alongside the existing pointer-coarse check."
+  }
+]

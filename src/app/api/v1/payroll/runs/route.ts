@@ -4,7 +4,51 @@ import {
   authenticate, errorResponse, okResponse, parseBody, toMinorUnit,
   checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
 } from "@/lib/api";
-import { createPayrollRunSchema } from "@/lib/schemas";
+import { createPayrollRunSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
+
+/** GET /api/v1/payroll/runs — list payroll runs scoped to key.userId. */
+export async function GET(req: NextRequest) {
+  const key = await authenticate(req);
+  if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
+
+  const url = new URL(req.url);
+  const parsed = listTransactionsSchema.safeParse({
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+  });
+  if (!parsed.success) {
+    return errorResponse("Invalid pagination parameters", 422, "validation_error", { fields: formatZodError(parsed.error) });
+  }
+  const { limit, offset } = parsed.data;
+
+  const status = url.searchParams.get("status") || undefined;
+
+  const [items, total] = await Promise.all([
+    db.payrollRun.findMany({
+      where: { userId: key.userId, ...(status ? { status } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+    db.payrollRun.count({ where: { userId: key.userId, ...(status ? { status } : {}) } }),
+  ]);
+
+  return okResponse({
+    object: "list",
+    has_more: offset + items.length < total,
+    url: "/v1/payroll/runs",
+    data: items.map((r) => ({
+      id: `prl_${r.id.slice(-10)}`,
+      object: "payroll_run",
+      status: r.status,
+      total_amount: r.totalAmount / 100,
+      total_currency: r.totalCurrency,
+      items_count: r.itemsCount,
+      scheduled_for: r.scheduledFor.toISOString(),
+      created_at: r.createdAt.toISOString(),
+    })),
+  });
+}
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
@@ -15,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createPayrollRunSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 
@@ -77,6 +121,6 @@ export async function POST(req: NextRequest) {
     created_at: run.createdAt.toISOString(),
   };
 
-  await saveIdempotencyRecord(req, bodyHash, "POST /v1/payroll/runs", { data: responseBody }, 200, key.userId);
-  return okResponse(responseBody);
+  await saveIdempotencyRecord(req, bodyHash, "POST /v1/payroll/runs", { data: responseBody }, 201, key.userId);
+  return okResponse(responseBody, 201);
 }

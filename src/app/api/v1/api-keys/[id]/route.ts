@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { errorResponse, okResponse, auditLog } from "@/lib/api";
+import { errorResponse, okResponse, auditLog, requireMasterKey } from "@/lib/api";
 
 /** DELETE /api/v1/api-keys/:id — revoke a key (soft delete) */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = requireMasterKey(req);
+  if (auth) return auth;
+
   const { id } = await params;
   const existing = await db.apiKey.findUnique({ where: { id } });
   if (!existing) return errorResponse("API key not found", 404, "not_found");

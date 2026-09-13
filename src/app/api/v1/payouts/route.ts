@@ -4,7 +4,53 @@ import {
   authenticate, errorResponse, okResponse, parseBody, toMinorUnit, randomId,
   checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
 } from "@/lib/api";
-import { createPayoutSchema } from "@/lib/schemas";
+import { createPayoutSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
+
+/** GET /api/v1/payouts — list payouts scoped to the calling API key's userId. */
+export async function GET(req: NextRequest) {
+  const key = await authenticate(req);
+  if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
+
+  const url = new URL(req.url);
+  const parsed = listTransactionsSchema.safeParse({
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+  });
+  if (!parsed.success) {
+    return errorResponse("Invalid pagination parameters", 422, "validation_error", { fields: formatZodError(parsed.error) });
+  }
+  const { limit, offset } = parsed.data;
+
+  const status = url.searchParams.get("status") || undefined;
+
+  const [items, total] = await Promise.all([
+    db.payout.findMany({
+      where: { userId: key.userId, ...(status ? { status } : {}) },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+    db.payout.count({ where: { userId: key.userId, ...(status ? { status } : {}) } }),
+  ]);
+
+  return okResponse({
+    object: "list",
+    has_more: offset + items.length < total,
+    url: "/v1/payouts",
+    data: items.map((p) => ({
+      id: `pout_${p.id.slice(-10)}`,
+      object: "payout",
+      amount: p.amount / 100,
+      currency: p.currency,
+      status: p.status,
+      destination: { type: p.destType, country: p.destCountry },
+      reference: p.reference,
+      reason: p.reason,
+      estimated_arrival: new Date(p.createdAt.getTime() + 3 * 3600_000).toISOString(),
+      created_at: p.createdAt.toISOString(),
+    })),
+  });
+}
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
@@ -15,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createPayoutSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 
@@ -71,6 +117,7 @@ export async function POST(req: NextRequest) {
             currency: p.currency,
             status: "pending",
             description: body.reason || `Payout ${p.reference}`,
+            userId: key.userId,
           },
         });
 
@@ -99,8 +146,8 @@ export async function POST(req: NextRequest) {
         created_at: payout.createdAt.toISOString(),
       };
 
-      await saveIdempotencyRecord(req, bodyHash, "POST /v1/payouts", { data: responseBody }, 200, key.userId);
-      return okResponse(responseBody);
+      await saveIdempotencyRecord(req, bodyHash, "POST /v1/payouts", { data: responseBody }, 201, key.userId);
+      return okResponse(responseBody, 201);
     } catch (e: any) {
       if (e?.code === "P2002" && attempts < 4) {
         reference = randomId(12, "payout-");

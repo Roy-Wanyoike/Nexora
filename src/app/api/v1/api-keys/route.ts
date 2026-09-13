@@ -1,10 +1,16 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { errorResponse, okResponse, parseBody, generateApiKey, hashKey, auditLog } from "@/lib/api";
-import { createApiKeySchema } from "@/lib/schemas";
+import {
+  errorResponse, okResponse, parseBody, generateApiKey, hashKey, auditLog,
+  requireMasterKey,
+} from "@/lib/api";
+import { createApiKeySchema, formatZodError } from "@/lib/schemas";
 
 /** GET /api/v1/api-keys?mode=test|live — list keys (never returns the full key) */
 export async function GET(req: NextRequest) {
+  const auth = requireMasterKey(req);
+  if (auth) return auth;
+
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
 
@@ -36,12 +42,15 @@ export async function GET(req: NextRequest) {
 
 /** POST /api/v1/api-keys — create a new key. Returns the full key ONCE. */
 export async function POST(req: NextRequest) {
+  const auth = requireMasterKey(req);
+  if (auth) return auth;
+
   const rawBody = await parseBody<any>(req);
   if (!rawBody) return errorResponse("Request body is required", 422, "validation_error");
 
   const parsed = createApiKeySchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 

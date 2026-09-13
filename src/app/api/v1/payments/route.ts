@@ -5,6 +5,8 @@ import {
   getOrCreateDemoCustomer, checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
 } from "@/lib/api";
 import { createPaymentSchema, formatZodError } from "@/lib/schemas";
+import { initiatePayment } from "@/lib/gateways/theteller";
+import { dispatchToUserEndpoints } from "@/lib/webhooks/dispatcher";
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
   // Strict zod validation
   const parsed = createPaymentSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 
@@ -63,12 +65,13 @@ export async function POST(req: NextRequest) {
   while (attempts < 5) {
     try {
       const result = await db.$transaction(async (tx) => {
+        // Create payment in `pending` — the gateway callback verifies and flips it.
         const payment = await tx.payment.create({
           data: {
             amount: toMinorUnit(amount),
             currency,
             channel,
-            status: "succeeded",
+            status: "pending",
             reference: finalRef,
             description: description ? String(description).slice(0, 500) : null,
             fees: Math.round(toMinorUnit(amount) * 0.015),
@@ -82,13 +85,63 @@ export async function POST(req: NextRequest) {
             type: "payment",
             amount: payment.amount,
             currency: payment.currency,
-            status: "succeeded",
+            status: "pending",
             description: description || `Payment ${payment.reference}`,
+            userId: key.userId,
           },
         });
 
         return payment;
       });
+
+      // Initialize the gateway checkout session. In test/dev we degrade
+      // gracefully if the gateway is unreachable — the payment stays
+      // `pending` and the caller can still drive it via /callback.
+      const gateway = await initiatePayment({
+        amount,
+        currency,
+        reference: result.reference!,
+        description: description || `Payment ${result.reference}`,
+      });
+
+      let gatewayTxnId: string | null = null;
+      let checkoutUrl: string | null = null;
+      let gatewayFailed = false;
+      if (gateway.ok && gateway.checkoutUrl) {
+        gatewayTxnId = gateway.transactionId || result.reference!;
+        checkoutUrl = gateway.checkoutUrl;
+        await db.payment.update({
+          where: { id: result.id },
+          data: { gatewayTxnId },
+        });
+      } else if (process.env.NODE_ENV !== "production") {
+        // Dev fallback: synthesize a checkout URL so the demo flows.
+        checkoutUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/payment/callback?reference=${encodeURIComponent(
+          result.reference!
+        )}`;
+        gatewayTxnId = result.reference!;
+        await db.payment.update({
+          where: { id: result.id },
+          data: { gatewayTxnId },
+        });
+      } else {
+        // In production, if the gateway fails to initialize we mark the
+        // payment as failed and surface the error.
+        await db.payment.update({
+          where: { id: result.id },
+          data: { status: "failed" },
+        });
+        gatewayFailed = true;
+      }
+
+      if (gatewayFailed) {
+        return errorResponse(
+          "Gateway initialization failed",
+          502,
+          "gateway_error",
+          { gateway_error: gateway.error }
+        );
+      }
 
       // Audit log (fire-and-forget)
       auditLog({
@@ -98,7 +151,7 @@ export async function POST(req: NextRequest) {
         resourceType: "payment",
         resourceId: result.id,
         req,
-        metadata: { amount, currency, reference: result.reference },
+        metadata: { amount, currency, reference: result.reference, gatewayTxnId },
       });
 
       const responseBody = {
@@ -110,13 +163,21 @@ export async function POST(req: NextRequest) {
         channel: result.channel,
         customer: result.customerId,
         reference: result.reference,
+        gateway_txn_id: gatewayTxnId,
+        checkout_url: checkoutUrl,
         created_at: result.createdAt.toISOString(),
         fees: result.fees / 100,
         net: (result.amount - result.fees) / 100,
       };
 
-      await saveIdempotencyRecord(req, bodyHash, "POST /v1/payments", { data: responseBody }, 200, key.userId);
-      return okResponse(responseBody);
+      // Note: we deliberately do NOT fire `payment.succeeded` here — the
+      // payment is `pending`. The webhook is dispatched from the /callback
+      // route once the gateway confirms success. We fire a `payment.created`
+      // event instead so subscribers can react to the new pending payment.
+      dispatchToUserEndpoints(key.userId, "payment.created", responseBody).catch(() => {});
+
+      await saveIdempotencyRecord(req, bodyHash, "POST /v1/payments", { data: responseBody }, 201, key.userId);
+      return okResponse(responseBody, 201);
     } catch (e: any) {
       if (e?.code === "P2002" && attempts < 4) {
         finalRef = randomId(12, "nxp-");

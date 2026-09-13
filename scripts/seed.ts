@@ -122,14 +122,14 @@ async function main() {
     const day = 86400000;
     await db.transaction.createMany({
       data: [
-        { type: "payment", amount: 500000, currency: "NGN", status: "succeeded", description: "Pro plan subscription", createdAt: new Date(now) },
-        { type: "payout", amount: 24000, currency: "USD", status: "pending", description: "To vendor · PayPal", createdAt: new Date(now - day) },
-        { type: "fx_conversion", amount: 200000, currency: "USD", status: "succeeded", description: "USD → NGN", createdAt: new Date(now - 2 * day) },
-        { type: "card_charge", amount: 1599, currency: "USD", status: "succeeded", description: "Netflix subscription", createdAt: new Date(now - 3 * day) },
-        { type: "payment", amount: 182000, currency: "USD", status: "succeeded", description: "Stripe payout", createdAt: new Date(now - 4 * day) },
-        { type: "card_charge", amount: 899, currency: "USD", status: "succeeded", description: "eSIM · UK 10GB", createdAt: new Date(now - 5 * day) },
-        { type: "payout", amount: 4821000, currency: "USD", status: "succeeded", description: "Payroll · September", createdAt: new Date(now - 7 * day) },
-        { type: "payment", amount: 740000, currency: "NGN", status: "succeeded", description: "DStv renewal", createdAt: new Date(now - 9 * day) },
+        { type: "payment", amount: 500000, currency: "NGN", status: "succeeded", description: "Pro plan subscription", userId: user.id, createdAt: new Date(now) },
+        { type: "payout", amount: 24000, currency: "USD", status: "pending", description: "To vendor · PayPal", userId: user.id, createdAt: new Date(now - day) },
+        { type: "fx_conversion", amount: 200000, currency: "USD", status: "succeeded", description: "USD → NGN", userId: user.id, createdAt: new Date(now - 2 * day) },
+        { type: "card_charge", amount: 1599, currency: "USD", status: "succeeded", description: "Netflix subscription", userId: user.id, createdAt: new Date(now - 3 * day) },
+        { type: "payment", amount: 182000, currency: "USD", status: "succeeded", description: "Stripe payout", userId: user.id, createdAt: new Date(now - 4 * day) },
+        { type: "card_charge", amount: 899, currency: "USD", status: "succeeded", description: "eSIM · UK 10GB", userId: user.id, createdAt: new Date(now - 5 * day) },
+        { type: "payout", amount: 4821000, currency: "USD", status: "succeeded", description: "Payroll · September", userId: user.id, createdAt: new Date(now - 7 * day) },
+        { type: "payment", amount: 740000, currency: "NGN", status: "succeeded", description: "DStv renewal", userId: user.id, createdAt: new Date(now - 9 * day) },
       ],
     });
     console.log("  ✓ Created 8 transactions");
@@ -145,6 +145,7 @@ async function main() {
         totalCurrency: "USD",
         itemsCount: 28,
         scheduledFor: new Date("2026-09-30T08:00:00.000Z"),
+        userId: user.id,
       },
     });
     console.log("  ✓ Created payroll run");

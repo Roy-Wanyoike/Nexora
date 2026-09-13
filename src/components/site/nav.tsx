@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Menu, X, Zap } from "lucide-react";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
@@ -56,21 +57,21 @@ export function Nav() {
 
         <div className="flex items-center gap-2">
           <ThemeToggle className="hidden sm:inline-flex" />
-          <a
-            href="#app-demo"
+          <Link
+            href="/login"
             className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-block"
           >
             Sign in
-          </a>
+          </Link>
           <Button
             asChild
             size="sm"
             className="gap-1.5 rounded-full bg-gradient-to-r from-brand to-brand-2 text-primary-foreground shadow-[0_8px_24px_-12px_var(--brand)] hover:opacity-95"
           >
-            <a href="#app-demo">
+            <Link href="/signup">
               <Zap className="h-3.5 w-3.5" />
               Get Started
-            </a>
+            </Link>
           </Button>
           <button
             type="button"

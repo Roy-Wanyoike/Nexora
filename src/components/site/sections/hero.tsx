@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   ArrowRight, ShieldCheck, Smartphone, Send, Wifi,
   CreditCard, Building2, Zap, Star, Check,
@@ -105,10 +106,10 @@ export function Hero() {
                 size="lg"
                 className="gap-2 rounded-full bg-gradient-to-r from-brand to-brand-2 px-6 text-primary-foreground shadow-[0_14px_40px_-18px_var(--brand)] hover:opacity-95"
               >
-                <a href="#app-demo">
+                <Link href="/signup">
                   Get Started Free
                   <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
               <Button
                 asChild

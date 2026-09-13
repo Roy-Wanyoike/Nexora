@@ -6,8 +6,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 
-export function errorResponse(error: string, status = 400, code?: string) {
-  return NextResponse.json({ error, code }, { status });
+export function errorResponse(
+  error: string,
+  status = 400,
+  code?: string,
+  details?: any
+) {
+  const body: Record<string, any> = { error, code };
+  if (details !== undefined) body.details = details;
+  return NextResponse.json(body, { status });
 }
 
 export function okResponse<T>(data: T, status = 200) {
@@ -87,6 +94,66 @@ export function randomLast4(): string {
   return String(randomBytes(2).readUInt16BE(0) % 9000 + 1000);
 }
 
+// ── Master key (admin endpoints) ────────────────────────────────────
+
+/**
+ * Check the `x-master-key` header against process.env.NEXORA_MASTER_KEY
+ * using a constant-time comparison.
+ *
+ * Behavior:
+ *  - If NEXORA_MASTER_KEY is set, the header must match it byte-for-byte.
+ *  - If NEXORA_MASTER_KEY is NOT set, the request is allowed only when
+ *    NODE_ENV !== 'production' (dev convenience). In production we reject.
+ *
+ * Returns `null` when authorized, otherwise a NextResponse (401/403) the
+ * caller should return immediately.
+ */
+export function requireMasterKey(req: NextRequest): NextResponse | null {
+  const expected = process.env.NEXORA_MASTER_KEY;
+
+  // No master key configured:
+  //   - dev mode → allow (with a console warning)
+  //   - production → deny hard
+  if (!expected) {
+    if (process.env.NODE_ENV !== "production") {
+      // Dev convenience: don't block local development. We log once per request
+      // to make the misconfiguration visible.
+      if (process.env.DEBUG_PRISMA === "1") {
+        console.warn(
+          "[auth] NEXORA_MASTER_KEY is not set — allowing master-key endpoint in dev mode only."
+        );
+      }
+      return null;
+    }
+    return NextResponse.json(
+      { error: "Master key is not configured on the server.", code: "master_key_unconfigured" },
+      { status: 503 }
+    );
+  }
+
+  const provided = req.headers.get("x-master-key") || "";
+  if (!provided) {
+    return NextResponse.json(
+      { error: "Missing x-master-key header.", code: "auth_error" },
+      { status: 401 }
+    );
+  }
+
+  // Constant-time compare. Both must be the same length, so we hash both
+  // to a fixed-length digest first — this also defeats any timing leaks
+  // from a length-mismatch shortcut.
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(expected).digest();
+  if (a.length === b.length && timingSafeEqual(a, b)) {
+    return null;
+  }
+
+  return NextResponse.json(
+    { error: "Invalid master key.", code: "auth_error" },
+    { status: 403 }
+  );
+}
+
 /** Get or create a demo customer (since we don't have real auth in this demo). */
 export async function getOrCreateDemoCustomer(): Promise<{ id: string }> {
   const email = "john.doe@nexora.africa";
@@ -146,11 +213,14 @@ export async function checkIdempotency(
     };
   }
 
-  // Replay the cached response
+  // Replay the cached response body. Per HTTP semantics (and the project
+  // contract: Issue #15), an idempotency replay MUST return 200 OK — the
+  // resource already exists, we're not "creating" it again. We preserve
+  // the original body verbatim but force the status to 200.
   const body = JSON.parse(existing.responseBody);
   return {
     replay: true,
-    response: NextResponse.json(body, { status: existing.responseStatus }),
+    response: NextResponse.json(body, { status: 200 }),
     conflict: false,
   };
 }

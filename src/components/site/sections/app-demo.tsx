@@ -70,13 +70,13 @@ export function AppDemo() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr]">
           {/* Sidebar */}
           <aside className="border-b border-border/60 bg-background/30 p-3 md:border-b-0 md:border-r">
             <p className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Menu
             </p>
-            <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible thin-scroll">
+            <nav className="flex flex-row md:flex-col overflow-x-auto md:overflow-visible thin-scroll gap-1">
               {TABS.map((t) => {
                 const active = tab === t.id;
                 return (
@@ -110,7 +110,7 @@ export function AppDemo() {
           </aside>
 
           {/* Main */}
-          <div className="min-h-[640px] bg-gradient-to-br from-background/40 to-card/20 p-4 sm:p-6">
+          <div className="min-w-0 min-h-[640px] bg-gradient-to-br from-background/40 to-card/20 p-4 sm:p-6">
             <AnimatePresence mode="wait">
               <motion.div
                 key={tab}

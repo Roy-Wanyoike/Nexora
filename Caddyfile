@@ -1,17 +1,12 @@
 :81 {
-	@transform_port_query {
-		query XTransformPort=*
-	}
-
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
-
+	# Security note: the previous @transform_port_query handler allowed any
+	# client to pass `?XTransformPort=<port>` and have Caddy reverse_proxy to
+	# localhost:<port>. This was an open SSRF (and local-port-scanning)
+	# vulnerability — an attacker could reach internal services bound to
+	# localhost (databases, admin panels, metrics endpoints, etc.) that are
+	# not otherwise exposed. It has been removed entirely. The single
+	# reverse_proxy below routes everything (including /api/*) to the Next.js
+	# app on :3000.
 	handle {
 		reverse_proxy localhost:3000 {
 			header_up Host {host}

@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
-  authenticate, errorResponse, okResponse, parseBody, randomId,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
+  authenticate, errorResponse, okResponse, parseBody,
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, randomId,
 } from "@/lib/api";
-import { createPaymentLinkSchema } from "@/lib/schemas";
+import { createPaymentLinkSchema, formatZodError } from "@/lib/schemas";
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createPaymentLinkSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
   const body = parsed.data;
 
@@ -53,6 +53,6 @@ export async function POST(req: NextRequest) {
     created_at: new Date().toISOString(),
   };
 
-  await saveIdempotencyRecord(req, bodyHash, "POST /v1/payment-links", { data: responseBody }, 200, key.userId);
-  return okResponse(responseBody);
+  await saveIdempotencyRecord(req, bodyHash, "POST /v1/payment-links", { data: responseBody }, 201, key.userId);
+  return okResponse(responseBody, 201);
 }
