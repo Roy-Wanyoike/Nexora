@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Account / auth =====
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apiKeys ApiKey[]
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  label     String
+  key       String   @unique
+  mode      String   // "test" | "live"
+  userId    String
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ===== Customers =====
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String?
+  name      String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  payments         Payment[]
+  virtualCards     VirtualCard[]
+  foreignAccounts  ForeignAccount[]
+}
+
+// ===== Payments =====
+
+model Payment {
+  id          String   @id @default(cuid())
+  amount      Int      // in smallest currency unit (kobo/cents)
+  currency    String
+  channel     String   // card | bank | wallet
+  status      String   // pending | succeeded | failed
+  reference   String?  @unique
+  description String?
+  fees        Int      @default(0)
+  customerId  String
+  createdAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+}
+
+// ===== Virtual cards =====
+
+model VirtualCard {
+  id              String   @id @default(cuid())
+  brand           String   @default("visa")
+  last4           String
+  expMonth        Int
+  expYear         Int
+  currency        String
+  spendingLimit   Int?
+  spendingInterval String? // daily | monthly | yearly
+  label           String?
+  status          String   @default("active") // active | frozen | deleted
+  customerId      String
+  createdAt       DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+// ===== Foreign accounts =====
+
+model ForeignAccount {
+  id            String   @id @default(cuid())
+  currency      String   // USD | GBP | EUR | CNY
+  accountName   String
+  accountNumber String
+  routingNumber String?  // routing | sort code | BIC | CNAPS
+  bankName      String
+  customerType  String   @default("individual") // individual | business
+  status        String   @default("active")
+  customerId    String
+  createdAt     DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+}
+
+// ===== Payouts =====
+
+model Payout {
+  id          String   @id @default(cuid())
+  amount      Int
+  currency    String
+  status      String   @default("pending") // pending | paid | failed
+  destType    String   // bank | mobile | wallet
+  destCountry String
+  reference   String?  @unique
+  reason      String?
+  createdAt   DateTime @default(now())
+}
+
+// ===== Transactions (unified ledger) =====
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String   // payment | payout | fx_conversion | card_charge | refund
+  amount      Int
+  currency    String
+  status      String   // succeeded | pending | failed
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([status])
+}
+
+// ===== Payroll =====
+
+model PayrollRun {
+  id             String   @id @default(cuid())
+  status         String   @default("scheduled") // scheduled | paid | failed
+  totalAmount    Int
+  totalCurrency  String
+  itemsCount     Int
+  scheduledFor   DateTime
+  createdAt      DateTime @default(now())
+}
+
+// ===== Webhooks =====
+
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  type      String
+  payload   String   // JSON string
+  delivered Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([type])
+}
