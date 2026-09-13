@@ -346,7 +346,7 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
 
 function ApiKeysPanel() {
   const [mode, setMode] = useState<"test" | "live">("test");
-  const [keys, setKeys] = useState<{ id: string; label: string; key: string; live: boolean; created: string }[]>([]);
+  const [keys, setKeys] = useState<{ id: string; label: string; key: string; keyPrefix?: string; live: boolean; created: string; isNew?: boolean }[]>([]);
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
@@ -363,7 +363,9 @@ function ApiKeysPanel() {
           data.map((k: any) => ({
             id: k.id,
             label: k.label,
-            key: k.key,
+            // GET only returns the prefix — mask it for display
+            key: k.keyPrefix ? `${k.keyPrefix}••••••••••••` : "••••",
+            keyPrefix: k.keyPrefix,
             live: k.mode === "live",
             created: k.created,
           }))
@@ -386,18 +388,22 @@ function ApiKeysPanel() {
       const res = await r.json();
       if (!r.ok) throw new Error(res.error || "Failed to create key");
       const k = res.data;
+      // The full key is returned ONLY at creation — store it locally so the
+      // user can copy it once, then it's gone forever.
       setKeys((prev) => [
         {
           id: k.id,
           label: k.label,
-          key: k.key,
+          key: k.key, // full key — shown once
+          keyPrefix: k.keyPrefix,
           live: k.mode === "live",
           created: k.created,
+          isNew: true,
         },
         ...prev,
       ]);
       toast.success(`${mode === "live" ? "Live" : "Test"} API key created`, {
-        description: "Persisted to database — try it in the Endpoint Explorer below.",
+        description: "Copy it now — the full key won't be shown again.",
       });
     } catch (e: any) {
       toast.error("Failed to create key", { description: e.message });
@@ -464,9 +470,11 @@ function ApiKeysPanel() {
         )}
         {visibleKeys.map((k) => {
           const shown = reveal[k.id];
-          const masked = k.key.slice(0, 12) + "••••••••••••••••••••••";
+          // For newly-created keys, show the full key. For loaded keys, only the prefix is available.
+          const displayKey = k.isNew ? k.key : (k.keyPrefix ? `${k.keyPrefix}••••••••••••` : "••••••••");
+          const masked = k.keyPrefix ? `${k.keyPrefix}••••••••••••` : "••••••••";
           return (
-            <div key={k.id} className="rounded-xl border border-border/40 bg-background/30 p-3">
+            <div key={k.id} className={`rounded-xl border p-3 ${k.isNew ? "border-emerald-500/40 bg-emerald-500/5" : "border-border/40 bg-background/30"}`}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -478,19 +486,32 @@ function ApiKeysPanel() {
                     >
                       {k.live ? "live" : "test"}
                     </span>
+                    {k.isNew && (
+                      <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-300">
+                        New — copy now
+                      </span>
+                    )}
                   </div>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">{shown ? k.key : masked}</p>
-                  <p className="mt-0.5 text-[10px] text-muted-foreground">Created {k.created}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {k.isNew ? (shown ? displayKey : masked) : masked}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {k.isNew
+                      ? "Full key shown once — store it securely."
+                      : `Created ${k.created}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setReveal((r) => ({ ...r, [k.id]: !r[k.id] }))}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/40 text-muted-foreground hover:text-foreground"
-                    aria-label="Toggle reveal"
-                  >
-                    {shown ? "🙈" : "👁"}
-                  </button>
-                  <CopyButton text={k.key} />
+                  {k.isNew && (
+                    <button
+                      onClick={() => setReveal((r) => ({ ...r, [k.id]: !r[k.id] }))}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/40 text-muted-foreground hover:text-foreground"
+                      aria-label="Toggle reveal"
+                    >
+                      {shown ? "🙈" : "👁"}
+                    </button>
+                  )}
+                  <CopyButton text={k.isNew ? k.key : (k.keyPrefix || "")} label={k.isNew ? "Copy key" : "Prefix"} />
                   <button
                     onClick={() => revoke(k.id)}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"

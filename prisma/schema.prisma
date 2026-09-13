@@ -25,15 +25,18 @@ model User {
 model ApiKey {
   id        String   @id @default(cuid())
   label     String
-  key       String   @unique
+  keyHash   String   @unique // SHA-256 of the full key (never store the raw key)
+  keyPrefix String   // first 12 chars for display (e.g. "nxp_test_8h2")
   mode      String   // "test" | "live"
   userId    String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   revokedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([mode])
 }
 
 // ===== Customers =====
@@ -63,11 +66,13 @@ model Payment {
   fees        Int      @default(0)
   customerId  String
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id])
 
   @@index([customerId])
   @@index([status])
+  @@index([createdAt])
 }
 
 // ===== Virtual cards =====
@@ -85,10 +90,12 @@ model VirtualCard {
   status          String   @default("active") // active | frozen | deleted
   customerId      String
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id])
 
   @@index([customerId])
+  @@index([status])
 }
 
 // ===== Foreign accounts =====
@@ -122,6 +129,10 @@ model Payout {
   reference   String?  @unique
   reason      String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ===== Transactions (unified ledger) =====
@@ -137,6 +148,7 @@ model Transaction {
 
   @@index([type])
   @@index([status])
+  @@index([createdAt])
 }
 
 // ===== Payroll =====
@@ -149,16 +161,24 @@ model PayrollRun {
   itemsCount     Int
   scheduledFor   DateTime
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
 }
 
 // ===== Webhooks =====
 
 model WebhookEvent {
-  id        String   @id @default(cuid())
-  type      String
-  payload   String   // JSON string
-  delivered Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  type          String
+  payload       String    // JSON string
+  delivered     Boolean   @default(false)
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+  responseCode  Int?
+  createdAt     DateTime  @default(now())
 
   @@index([type])
+  @@index([delivered, nextAttemptAt])
 }

@@ -1,55 +1,60 @@
 /**
- * Seed the Nexa Pay demo database with sample data.
- * Run: bun run /home/z/my-project/scripts/seed.ts
+ * Seed the Nexora demo database with sample data.
+ * Run: bun run scripts/seed.ts
  */
 import { PrismaClient } from "@prisma/client";
+import { createHash } from "node:crypto";
 
 const db = new PrismaClient();
 
-function rid(len: number, prefix = ""): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let s = "";
-  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return prefix + s;
+function hashKey(rawKey: string): string {
+  return createHash("sha256").update(rawKey).digest("hex");
 }
 
+// The demo test API key — also used by the frontend Endpoint Explorer.
+// The raw key is safe to commit (it's a demo test key); only its hash is stored in the DB.
+const DEMO_TEST_KEY = "nxp_test_8h2k9nbq01def456abc789";
+const STAGING_TEST_KEY = "nxp_test_2k9p7xzq3mn1rst456uvw";
+
 async function main() {
-  console.log("🌱 Seeding Nexa Pay demo database...");
+  console.log("🌱 Seeding Nexora demo database...");
 
   // 1. Demo user
-  const user = await db.user.upsert({
-    where: { email: "john.doe@nexapay.africa" },
-    update: {},
-    create: { email: "john.doe@nexapay.africa", name: "John Doe" },
-  });
+  let user = await db.user.findFirst({ where: { email: "john.doe@nexora.africa" } });
+  if (!user) {
+    user = await db.user.create({ data: { email: "john.doe@nexora.africa", name: "John Doe" } });
+  }
 
-  // 2. API keys (test mode)
+  // 2. API keys (test mode) — stored as hashes only
   const existingKeys = await db.apiKey.count();
   if (existingKeys === 0) {
-    await db.apiKey.createMany({
-      data: [
-        {
-          label: "Backend server",
-          key: "nxp_test_8h2k9nbq01def456abc789",
-          mode: "test",
-          userId: user.id,
-        },
-        {
-          label: "Staging webhook",
-          key: "nxp_test_2k9p7xzq3mn1rst456uvw",
-          mode: "test",
-          userId: user.id,
-        },
-      ],
+    await db.apiKey.create({
+      data: {
+        label: "Backend server",
+        keyHash: hashKey(DEMO_TEST_KEY),
+        keyPrefix: DEMO_TEST_KEY.slice(0, 12),
+        mode: "test",
+        userId: user.id,
+      },
     });
-    console.log("  ✓ Created 2 test API keys");
+    await db.apiKey.create({
+      data: {
+        label: "Staging webhook",
+        keyHash: hashKey(STAGING_TEST_KEY),
+        keyPrefix: STAGING_TEST_KEY.slice(0, 12),
+        mode: "test",
+        userId: user.id,
+      },
+    });
+    console.log("  ✓ Created 2 test API keys (stored as SHA-256 hashes)");
+    console.log(`    Demo test key (for the Endpoint Explorer): ${DEMO_TEST_KEY}`);
   }
 
   // 3. Customer
-  let customer = await db.customer.findFirst({ where: { email: "john.doe@nexapay.africa" } });
+  let customer = await db.customer.findFirst({ where: { email: "john.doe@nexora.africa" } });
   if (!customer) {
     customer = await db.customer.create({
-      data: { email: "john.doe@nexapay.africa", name: "John Doe", phone: "+2348000000000" },
+      data: { email: "john.doe@nexora.africa", name: "John Doe", phone: "+2348000000000" },
     });
   }
 
@@ -83,7 +88,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "4591882134",
           routingNumber: "084009519",
-          bankName: "Nexa Pay / Evolve",
+          bankName: "Nexora / Evolve",
           customerType: "individual",
           customerId: customer.id,
         },
@@ -92,7 +97,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "88215647",
           routingNumber: "04-00-19",
-          bankName: "Nexa Pay UK Ltd",
+          bankName: "Nexora UK Ltd",
           customerType: "individual",
           customerId: customer.id,
         },
@@ -101,7 +106,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "DE89370400440532013000",
           routingNumber: "PAYSDEMM",
-          bankName: "Nexa Pay EU GmbH",
+          bankName: "Nexora EU GmbH",
           customerType: "individual",
           customerId: customer.id,
         },
@@ -146,6 +151,9 @@ async function main() {
   }
 
   console.log("✅ Seed complete.");
+  console.log("");
+  console.log("Use this key in the Endpoint Explorer or curl:");
+  console.log(`  ${DEMO_TEST_KEY}`);
 }
 
 main()
