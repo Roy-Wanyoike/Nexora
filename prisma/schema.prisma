@@ -19,7 +19,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  apiKeys ApiKey[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+  customers    Customer[]
+  payments     Payment[]
+  payouts      Payout[]
+  virtualCards VirtualCard[]
+  foreignAccounts ForeignAccount[]
+  payrollRuns  PayrollRun[]
 }
 
 model ApiKey {
@@ -46,11 +53,15 @@ model Customer {
   email     String?
   name      String?
   phone     String?
+  userId    String?  // owner (null for the shared demo customer)
   createdAt DateTime @default(now())
 
+  user             User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments         Payment[]
   virtualCards     VirtualCard[]
   foreignAccounts  ForeignAccount[]
+
+  @@index([userId])
 }
 
 // ===== Payments =====
@@ -65,12 +76,15 @@ model Payment {
   description String?
   fees        Int      @default(0)
   customerId  String
+  userId      String?  // owner (null for legacy shared demo data)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([userId])
   @@index([status])
   @@index([createdAt])
 }
@@ -89,12 +103,15 @@ model VirtualCard {
   label           String?
   status          String   @default("active") // active | frozen | deleted
   customerId      String
+  userId          String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([userId])
   @@index([status])
 }
 
@@ -110,11 +127,14 @@ model ForeignAccount {
   customerType  String   @default("individual") // individual | business
   status        String   @default("active")
   customerId    String
+  userId        String?
   createdAt     DateTime @default(now())
 
   customer Customer @relation(fields: [customerId], references: [id])
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([userId])
 }
 
 // ===== Payouts =====
@@ -128,9 +148,13 @@ model Payout {
   destCountry String
   reference   String?  @unique
   reason      String?
+  userId      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([status])
   @@index([createdAt])
 }
@@ -160,9 +184,13 @@ model PayrollRun {
   totalCurrency  String
   itemsCount     Int
   scheduledFor   DateTime
+  userId         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([status])
 }
 
@@ -181,4 +209,42 @@ model WebhookEvent {
 
   @@index([type])
   @@index([delivered, nextAttemptAt])
+}
+
+// ===== Audit log (compliance) =====
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?  // null = anonymous / system
+  apiKeyId     String?  // which API key performed the action
+  action       String   // e.g. "payment.create", "api_key.revoke"
+  resourceType String   // "payment" | "payout" | "virtual_card" | ...
+  resourceId   String
+  ipAddress    String?
+  userAgent    String?
+  metadata     String?  // JSON string of before/after diff
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
+
+// ===== Idempotency (replay-safe POSTs) =====
+
+model IdempotencyRecord {
+  id              String   @id @default(cuid())
+  key             String   @unique // the Idempotency-Key header value
+  userId          String?
+  endpoint        String   // e.g. "POST /v1/payments"
+  requestBodyHash String   // SHA-256 of the request body (to detect mismatched replays)
+  responseBody    String   // the cached response JSON
+  responseStatus  Int
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime // 24h from creation
+
+  @@index([userId])
+  @@index([expiresAt])
 }

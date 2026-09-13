@@ -1,19 +1,21 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authenticate, errorResponse, okResponse, fromMinorUnit } from "@/lib/api";
+import { listTransactionsSchema } from "@/lib/schemas";
 
 export async function GET(req: NextRequest) {
   const key = await authenticate(req);
   if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
 
   const url = new URL(req.url);
-  const limitRaw = parseInt(url.searchParams.get("limit") || "20", 10);
-  const offsetRaw = parseInt(url.searchParams.get("offset") || "0", 10);
-  if (Number.isNaN(limitRaw) || Number.isNaN(offsetRaw) || limitRaw < 0 || offsetRaw < 0) {
-    return errorResponse("`limit` and `offset` must be non-negative integers", 422, "validation_error");
+  const parsed = listTransactionsSchema.safeParse({
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+  });
+  if (!parsed.success) {
+    return errorResponse("Invalid pagination parameters", 422, "validation_error");
   }
-  const limit = Math.min(limitRaw, 100);
-  const offset = offsetRaw;
+  const { limit, offset } = parsed.data;
 
   const [items, total] = await Promise.all([
     db.transaction.findMany({

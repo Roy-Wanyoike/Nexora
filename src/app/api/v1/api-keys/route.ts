@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { errorResponse, okResponse, parseBody, generateApiKey, hashKey } from "@/lib/api";
+import { errorResponse, okResponse, parseBody, generateApiKey, hashKey, auditLog } from "@/lib/api";
+import { createApiKeySchema } from "@/lib/schemas";
 
-/** GET /api/v1/api-keys?mode=test|live — list keys (never returns the full key, only the prefix) */
+/** GET /api/v1/api-keys?mode=test|live — list keys (never returns the full key) */
 export async function GET(req: NextRequest) {
-  // NOTE: In a real app this would require a session cookie or master key.
-  // For the demo we allow it but only return the prefix (never the full key).
   const url = new URL(req.url);
-  const mode = url.searchParams.get("mode"); // "test" | "live" | undefined (all)
+  const mode = url.searchParams.get("mode");
 
   const keys = await db.apiKey.findMany({
     where: {
@@ -35,15 +34,16 @@ export async function GET(req: NextRequest) {
   );
 }
 
-/** POST /api/v1/api-keys — create a new key { label, mode }. Returns the full key ONCE. */
+/** POST /api/v1/api-keys — create a new key. Returns the full key ONCE. */
 export async function POST(req: NextRequest) {
-  const body = await parseBody<any>(req);
-  if (!body || !body.label || !body.mode) {
-    return errorResponse("`label` and `mode` (test|live) are required", 422, "validation_error");
+  const rawBody = await parseBody<any>(req);
+  if (!rawBody) return errorResponse("Request body is required", 422, "validation_error");
+
+  const parsed = createApiKeySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return errorResponse("Validation failed", 422, "validation_error");
   }
-  if (body.mode !== "test" && body.mode !== "live") {
-    return errorResponse("`mode` must be 'test' or 'live'", 422, "validation_error");
-  }
+  const body = parsed.data;
 
   // Find or create demo user
   let user = await db.user.findFirst({ where: { email: "john.doe@nexora.africa" } });
@@ -53,11 +53,11 @@ export async function POST(req: NextRequest) {
 
   const rawKey = generateApiKey(body.mode);
   const keyHash = hashKey(rawKey);
-  const keyPrefix = rawKey.slice(0, 12); // "nxp_test_8h2k"
+  const keyPrefix = rawKey.slice(0, 12);
 
   const k = await db.apiKey.create({
     data: {
-      label: String(body.label).slice(0, 100),
+      label: body.label,
       keyHash,
       keyPrefix,
       mode: body.mode,
@@ -65,7 +65,15 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Return the full key ONLY at creation time (caller must store it — it's never retrievable again)
+  auditLog({
+    actorUserId: user.id,
+    action: "api_key.create",
+    resourceType: "api_key",
+    resourceId: k.id,
+    req,
+    metadata: { label: body.label, mode: body.mode },
+  });
+
   return okResponse({
     id: k.id,
     label: k.label,

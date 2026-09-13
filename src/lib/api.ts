@@ -105,3 +105,122 @@ export function isValidAmount(amount: any, max = 1_000_000): boolean {
     amount <= max
   );
 }
+
+// ── Idempotency ─────────────────────────────────────────────────────
+
+/**
+ * Check for an existing idempotency record. If found and the request body
+ * hash matches, return the cached response. If the body hash differs, return
+ * a 409 (the caller reused a key with different data).
+ *
+ * If not found, return null — the caller should call `saveIdempotencyRecord`
+ * after a successful response.
+ */
+export async function checkIdempotency(
+  req: NextRequest,
+  requestBodyHash: string,
+  endpoint: string
+): Promise<{ replay: boolean; response: NextResponse | null; conflict: boolean }> {
+  const idemKey = req.headers.get("idempotency-key");
+  if (!idemKey) return { replay: false, response: null, conflict: false };
+
+  // Expire old records opportunistically (cheap delete on read)
+  await db.idempotencyRecord.deleteMany({
+    where: { expiresAt: { lt: new Date() } },
+  }).catch(() => {});
+
+  const existing = await db.idempotencyRecord.findUnique({
+    where: { key: idemKey },
+  }).catch(() => null);
+
+  if (!existing) return { replay: false, response: null, conflict: false };
+
+  if (existing.requestBodyHash !== requestBodyHash || existing.endpoint !== endpoint) {
+    return {
+      replay: false,
+      response: NextResponse.json(
+        { error: "Idempotency-Key was used with a different request body or endpoint.", code: "idempotency_conflict" },
+        { status: 409 }
+      ),
+      conflict: true,
+    };
+  }
+
+  // Replay the cached response
+  const body = JSON.parse(existing.responseBody);
+  return {
+    replay: true,
+    response: NextResponse.json(body, { status: existing.responseStatus }),
+    conflict: false,
+  };
+}
+
+/** Save an idempotency record after a successful response. */
+export async function saveIdempotencyRecord(
+  req: NextRequest,
+  requestBodyHash: string,
+  endpoint: string,
+  responseBody: Record<string, any>,
+  responseStatus: number,
+  userId?: string
+): Promise<void> {
+  const idemKey = req.headers.get("idempotency-key");
+  if (!idemKey) return;
+  try {
+    await db.idempotencyRecord.create({
+      data: {
+        key: idemKey,
+        userId,
+        endpoint,
+        requestBodyHash,
+        responseBody: JSON.stringify(responseBody),
+        responseStatus,
+        expiresAt: new Date(Date.now() + 24 * 3600 * 1000), // 24h
+      },
+    });
+  } catch {
+    // P2002 = key already exists (race) — safe to ignore
+  }
+}
+
+/** Hash a request body for idempotency comparison. */
+export function hashRequestBody(body: any): string {
+  return createHash("sha256").update(JSON.stringify(body || {})).digest("hex");
+}
+
+// ── Audit log ───────────────────────────────────────────────────────
+
+/**
+ * Record an audit log entry for a state-changing action.
+ * Fire-and-forget — never block the response on audit logging.
+ */
+export function auditLog(opts: {
+  actorUserId?: string | null;
+  apiKeyId?: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  req?: NextRequest;
+  metadata?: Record<string, any>;
+}): void {
+  const ip = opts.req?.headers.get("x-forwarded-for")?.split(",")[0].trim() || null;
+  const ua = opts.req?.headers.get("user-agent") || null;
+  // Fire-and-forget — don't await
+  db.auditLog
+    .create({
+      data: {
+        actorUserId: opts.actorUserId ?? null,
+        apiKeyId: opts.apiKeyId ?? null,
+        action: opts.action,
+        resourceType: opts.resourceType,
+        resourceId: opts.resourceId,
+        ipAddress: ip,
+        userAgent: ua,
+        metadata: opts.metadata ? JSON.stringify(opts.metadata) : null,
+      },
+    })
+    .catch((e) => {
+      // Never let audit failure break the request — just log
+      console.error("Audit log write failed:", e?.message || e);
+    });
+}

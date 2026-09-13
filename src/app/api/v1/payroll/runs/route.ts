@@ -1,19 +1,41 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { authenticate, errorResponse, okResponse, parseBody, toMinorUnit } from "@/lib/api";
+import {
+  authenticate, errorResponse, okResponse, parseBody, toMinorUnit,
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
+} from "@/lib/api";
+import { createPayrollRunSchema } from "@/lib/schemas";
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);
   if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
 
-  const body = await parseBody<any>(req);
-  if (!body || !Array.isArray(body.items) || body.items.length === 0) {
-    return errorResponse("`items` array is required", 422, "validation_error");
+  const rawBody = await parseBody<any>(req);
+  if (!rawBody) return errorResponse("Request body is required", 422, "validation_error");
+
+  const parsed = createPayrollRunSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return errorResponse("Validation failed", 422, "validation_error");
+  }
+  const body = parsed.data;
+
+  // Idempotency
+  const bodyHash = hashRequestBody(body);
+  const idem = await checkIdempotency(req, bodyHash, "POST /v1/payroll/runs");
+  if (idem.replay || idem.conflict) return idem.response!;
+
+  // Validate all item currencies match the run currency (audit finding)
+  const mixedCurrencies = body.items.some((item) => item.currency !== body.currency);
+  if (mixedCurrencies) {
+    return errorResponse(
+      `All item currencies must match the run currency (${body.currency}). Use separate runs for different currencies.`,
+      422,
+      "validation_error"
+    );
   }
 
-  const currency = (body.currency || "USD").toUpperCase();
   const totalMinor = body.items.reduce(
-    (sum: number, item: any) => sum + toMinorUnit(Number(item.amount)),
+    (sum, item) => sum + toMinorUnit(item.amount),
     0
   );
   const itemsCount = body.items.length;
@@ -27,13 +49,24 @@ export async function POST(req: NextRequest) {
     data: {
       status: "scheduled",
       totalAmount: totalMinor,
-      totalCurrency: currency,
+      totalCurrency: body.currency,
       itemsCount,
       scheduledFor,
+      userId: key.userId,
     },
   });
 
-  return okResponse({
+  auditLog({
+    actorUserId: key.userId,
+    apiKeyId: key.id,
+    action: "payroll_run.create",
+    resourceType: "payroll_run",
+    resourceId: run.id,
+    req,
+    metadata: { total: totalMinor / 100, currency: body.currency, items_count: itemsCount },
+  });
+
+  const responseBody = {
     id: `prl_${run.id.slice(-10)}`,
     object: "payroll_run",
     status: run.status,
@@ -42,5 +75,8 @@ export async function POST(req: NextRequest) {
     items_count: itemsCount,
     scheduled_for: run.scheduledFor.toISOString(),
     created_at: run.createdAt.toISOString(),
-  });
+  };
+
+  await saveIdempotencyRecord(req, bodyHash, "POST /v1/payroll/runs", { data: responseBody }, 200, key.userId);
+  return okResponse(responseBody);
 }
