@@ -76,7 +76,7 @@ export function Nav() {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-card/40 lg:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/40 lg:hidden"
             aria-label="Toggle menu"
           >
             {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}

@@ -1,5 +1,5 @@
 /**
- * Seed the Nexora demo database with sample data.
+ * Seed the Nexa Pay demo database with sample data.
  * Run: bun run scripts/seed.ts
  */
 import { PrismaClient } from "@prisma/client";
@@ -17,12 +17,12 @@ const DEMO_TEST_KEY = "nxp_test_8h2k9nbq01def456abc789";
 const STAGING_TEST_KEY = "nxp_test_2k9p7xzq3mn1rst456uvw";
 
 async function main() {
-  console.log("🌱 Seeding Nexora demo database...");
+  console.log("🌱 Seeding Nexa Pay demo database...");
 
   // 1. Demo user
-  let user = await db.user.findFirst({ where: { email: "john.doe@nexora.africa" } });
+  let user = await db.user.findFirst({ where: { email: "john.doe@nexapay.africa" } });
   if (!user) {
-    user = await db.user.create({ data: { email: "john.doe@nexora.africa", name: "John Doe" } });
+    user = await db.user.create({ data: { email: "john.doe@nexapay.africa", name: "John Doe" } });
   }
 
   // 2. API keys (test mode) — stored as hashes only
@@ -51,10 +51,10 @@ async function main() {
   }
 
   // 3. Customer
-  let customer = await db.customer.findFirst({ where: { email: "john.doe@nexora.africa" } });
+  let customer = await db.customer.findFirst({ where: { email: "john.doe@nexapay.africa" } });
   if (!customer) {
     customer = await db.customer.create({
-      data: { email: "john.doe@nexora.africa", name: "John Doe", phone: "+2348000000000" },
+      data: { email: "john.doe@nexapay.africa", name: "John Doe", phone: "+2348000000000" },
     });
   }
 
@@ -88,7 +88,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "4591882134",
           routingNumber: "084009519",
-          bankName: "Nexora / Evolve",
+          bankName: "Nexa Pay / Evolve",
           customerType: "individual",
           customerId: customer.id,
         },
@@ -97,7 +97,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "88215647",
           routingNumber: "04-00-19",
-          bankName: "Nexora UK Ltd",
+          bankName: "Nexa Pay UK Ltd",
           customerType: "individual",
           customerId: customer.id,
         },
@@ -106,7 +106,7 @@ async function main() {
           accountName: "John Doe",
           accountNumber: "DE89370400440532013000",
           routingNumber: "PAYSDEMM",
-          bankName: "Nexora EU GmbH",
+          bankName: "Nexa Pay EU GmbH",
           customerType: "individual",
           customerId: customer.id,
         },

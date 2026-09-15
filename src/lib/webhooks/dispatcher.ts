@@ -82,8 +82,8 @@ async function postOnce(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-nexora-signature": signature,
-        "user-agent": "Nexora-Webhook/1.0",
+        "x-nexapay-signature": signature,
+        "user-agent": "NexaPay-Webhook/1.0",
       },
       body: payload,
       signal: controller.signal,

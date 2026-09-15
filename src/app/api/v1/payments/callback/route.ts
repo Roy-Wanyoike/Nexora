@@ -78,11 +78,9 @@ export async function GET(req: NextRequest) {
       reference: payment.reference,
       gateway_status: "pending",
     });
-  } else if (process.env.NODE_ENV !== "production") {
-    // Dev fallback: verification unreachable OR gateway says "failed" for
-    // our synthetic transaction id. Demote to "succeeded" for demo purposes.
-    status = "succeeded";
   }
+  // No dev fallback — if the gateway is unreachable or says "failed",
+  // the payment stays "failed". Never auto-succeed without gateway confirmation.
 
   // Update payment + ledger row in a transaction.
   await db.$transaction(async (tx) => {

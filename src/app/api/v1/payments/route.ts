@@ -3,10 +3,19 @@ import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody, toMinorUnit, randomId,
   getOrCreateDemoCustomer, checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
+  methodNotAllowed,
 } from "@/lib/api";
 import { createPaymentSchema, formatZodError } from "@/lib/schemas";
 import { initiatePayment } from "@/lib/gateways/theteller";
 import { dispatchToUserEndpoints } from "@/lib/webhooks/dispatcher";
+
+// All non-POST methods on this endpoint return a 405 with an `Allow` header,
+// so clients get a standards-compliant JSON response (not Next.js's empty
+// default 405).
+export const GET    = (req: NextRequest) => methodNotAllowed(req, ["POST"]);
+export const PUT    = (req: NextRequest) => methodNotAllowed(req, ["POST"]);
+export const PATCH  = (req: NextRequest) => methodNotAllowed(req, ["POST"]);
+export const DELETE = (req: NextRequest) => methodNotAllowed(req, ["POST"]);
 
 export async function POST(req: NextRequest) {
   const key = await authenticate(req);

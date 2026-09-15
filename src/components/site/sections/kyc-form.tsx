@@ -21,7 +21,7 @@ const ID_TYPES = [
 ];
 
 // Demo API key — same key used by the Endpoint Explorer. See scripts/seed.ts.
-const DEMO_API_KEY = "nxp_test_8h2k9nbq01def456abc789";
+const DEMO_API_KEY = "";
 
 type KycStatus = "idle" | "loading" | "success" | "error";
 

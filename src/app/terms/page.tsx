@@ -5,9 +5,9 @@ import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/sections/footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Nexora",
+  title: "Terms of Service — Nexa Pay",
   description:
-    "The Nexora payment switch platform Terms of Service, governed by the laws of the Federal Republic of Nigeria.",
+    "The Nexa Pay payment switch platform Terms of Service, governed by the laws of the Federal Republic of Nigeria.",
 };
 
 const LAST_UPDATED = "12 January 2026";
@@ -33,9 +33,9 @@ export default function TermsPage() {
               <p className="text-base text-muted-foreground">
                 These Terms of Service (&quot;Terms&quot;, &quot;Agreement&quot;) form a legally
                 binding agreement between{" "}
-                <strong className="text-foreground">Nexora Technologies Ltd</strong> (&quot;Nexora&quot;,
+                <strong className="text-foreground">Nexa Pay Technologies Ltd</strong> (&quot;Nexa Pay&quot;,
                 &quot;we&quot;, &quot;us&quot;, &quot;our&quot;) and you (&quot;User&quot;,
-                &quot;you&quot;, &quot;your&quot;) governing your access to and use of the Nexora
+                &quot;you&quot;, &quot;your&quot;) governing your access to and use of the Nexa Pay
                 payment switch platform, including our website, mobile applications, developer APIs,
                 webhooks, SDKs, and any related services (collectively, the &quot;Services&quot;).
                 By creating an account, generating an API key, or otherwise using the Services, you
@@ -44,7 +44,7 @@ export default function TermsPage() {
 
               <Block id="service-description" title="1. Description of Service">
                 <p>
-                  Nexora operates a payment switch platform that centralizes multiple payment methods
+                  Nexa Pay operates a payment switch platform that centralizes multiple payment methods
                   for individuals and businesses in Nigeria and across Africa. The Services include:
                 </p>
                 <List
@@ -61,7 +61,7 @@ export default function TermsPage() {
                 />
                 <p>
                   The Services are provided through partner banks and licensed payment processors.
-                  Nexora is a technology and intermediary provider and is not a deposit-taking bank.
+                  Nexa Pay is a technology and intermediary provider and is not a deposit-taking bank.
                   Funds held in foreign currencies are held with our regulated partner banks in the
                   relevant jurisdictions; NGN balances are held with Nigerian partner banks.
                 </p>
@@ -78,7 +78,7 @@ export default function TermsPage() {
                     "For a Business account: your business is duly registered with the Corporate Affairs Commission (CAC) and you are authorized to bind the business to these Terms;",
                     "You are not located in, ordinarily resident in, or acting on behalf of any person or entity located in a country subject to comprehensive sanctions by the United Nations, the African Union, or the Federal Republic of Nigeria;",
                     "You are not a Specially Designated National (SDN) nor a Politically Exposed Person (PEP) who has failed to disclose that status; and",
-                    "You have not been previously suspended or removed from the Services by Nexora.",
+                    "You have not been previously suspended or removed from the Services by Nexa Pay.",
                   ]}
                 />
                 <p>
@@ -93,7 +93,7 @@ export default function TermsPage() {
                   You agree to provide accurate, current, and complete information during registration
                   and to keep such information updated. You are solely responsible for maintaining the
                   confidentiality of all passwords, API keys, and authentication credentials issued by
-                  Nexora, and for all activities that occur under your account.
+                  Nexa Pay, and for all activities that occur under your account.
                 </p>
                 <p>
                   API keys must be transmitted only over TLS-secured channels and must never be
@@ -117,7 +117,7 @@ export default function TermsPage() {
                   ]}
                 />
                 <p>
-                  Any breach of this Section 4 entitles Nexora to immediately suspend or terminate your
+                  Any breach of this Section 4 entitles Nexa Pay to immediately suspend or terminate your
                   account, freeze affected funds pending regulatory review, and report the matter to
                   the NFIU, NDPC, CBN, or other competent authority.
                 </p>
@@ -125,14 +125,14 @@ export default function TermsPage() {
 
               <Block id="fees" title="5. Fees">
                 <p>
-                  Nexora&apos;s current fees, including subscription pricing for Personal, Plus and
+                  Nexa Pay&apos;s current fees, including subscription pricing for Personal, Plus and
                   Business accounts, FX conversion fees, crypto trading fees, virtual card fees, and
                   payout fees, are published on our{" "}
                   <a href="/#pricing" className="legal-link">pricing page</a> and may be updated from
                   time to time. Fees are denominated in the currency most relevant to your account.
                 </p>
                 <p>
-                  By initiating a transaction, you authorize Nexora (and our partner banks) to deduct
+                  By initiating a transaction, you authorize Nexa Pay (and our partner banks) to deduct
                   all applicable fees from the transaction amount or from your wallet balance. Unless
                   otherwise stated, fees are non-refundable. Third-party network fees (e.g. SWIFT,
                   SEPA, ACH, card network fees, gas fees for on-chain stablecoin transfers) are
@@ -143,14 +143,14 @@ export default function TermsPage() {
               <Block id="chargebacks" title="6. Chargeback & Dispute Policy">
                 <p>
                   If you believe a card transaction processed through the Services is unauthorized or
-                  incorrect, you must notify Nexora in writing within thirty (30) days of the
+                  incorrect, you must notify Nexa Pay in writing within thirty (30) days of the
                   transaction date by contacting{" "}
-                  <a href="mailto:disputes@nexora.africa" className="legal-link">disputes@nexora.africa</a>{" "}
+                  <a href="mailto:disputes@nexapay.africa" className="legal-link">disputes@nexapay.africa</a>{" "}
                   and providing all required supporting documentation.
                 </p>
                 <p>
                   Chargebacks initiated through your card issuer (&quot;first-party&quot; chargebacks)
-                  are subject to verification by Nexora. We reserve the right to recover the
+                  are subject to verification by Nexa Pay. We reserve the right to recover the
                   disputed amount, chargeback fees, and associated costs from your wallet balance
                   where the dispute is found to be without merit or where the underlying transaction
                   has already been settled to the beneficiary. Repeated or abusive chargebacks may
@@ -160,7 +160,7 @@ export default function TermsPage() {
 
               <Block id="liability" title="7. Limitation of Liability">
                 <p>
-                  To the maximum extent permitted by applicable law, in no event shall Nexora, its
+                  To the maximum extent permitted by applicable law, in no event shall Nexa Pay, its
                   directors, officers, employees, affiliates, or partner banks be liable to you for
                   any indirect, incidental, special, consequential, or punitive damages, or for any
                   loss of profits, loss of business, loss of anticipated savings, loss of data, or
@@ -169,7 +169,7 @@ export default function TermsPage() {
                 </p>
                 <p>
                   Our aggregate liability for any claim arising out of or relating to the Services
-                  shall not exceed the total fees paid by you to Nexora in the six (6) months
+                  shall not exceed the total fees paid by you to Nexa Pay in the six (6) months
                   immediately preceding the event giving rise to the claim. Nothing in these Terms
                   shall limit liability which cannot be limited under Nigerian law, including
                   liability for fraud, wilful misconduct, or death or personal injury caused by
@@ -222,7 +222,7 @@ export default function TermsPage() {
                 <p>
                   We may amend these Terms from time to time. We will notify registered Users of any
                   material amendment by email to the address on file and by posting a notice in the
-                  Nexora dashboard at least fourteen (14) days before the amendment takes effect
+                  Nexa Pay dashboard at least fourteen (14) days before the amendment takes effect
                   (&quot;Notice Period&quot;).
                 </p>
                 <p>
@@ -236,14 +236,14 @@ export default function TermsPage() {
 
               <Block id="termination" title="11. Termination">
                 <p>
-                  You may close your account at any time by submitting a request through the Nexora
+                  You may close your account at any time by submitting a request through the Nexa Pay
                   dashboard or by emailing{" "}
-                  <a href="mailto:support@nexora.africa" className="legal-link">support@nexora.africa</a>.
+                  <a href="mailto:support@nexapay.africa" className="legal-link">support@nexapay.africa</a>.
                   Closure is subject to settlement of all outstanding transactions and fees and to
                   compliance with applicable anti-money-laundering record-keeping obligations.
                 </p>
                 <p>
-                  Nexora may suspend or terminate your account and access to the Services immediately
+                  Nexa Pay may suspend or terminate your account and access to the Services immediately
                   and without prior notice where: (a) you breach these Terms; (b) we are required to
                   do so by law, regulation, court order, or request from a competent authority
                   (including the CBN, NFIU, NDPC, or EFCC); (c) we suspect fraudulent, sanctioned,
@@ -259,15 +259,15 @@ export default function TermsPage() {
 
               <Block id="contact" title="12. Contact">
                 <p>
-                  Nexora Technologies Ltd is the data controller and service provider under these
+                  Nexa Pay Technologies Ltd is the data controller and service provider under these
                   Terms. For any question, notice, or complaint regarding these Terms, please contact
                   us at:
                 </p>
                 <p>
-                  Nexora Technologies Ltd<br />
+                  Nexa Pay Technologies Ltd<br />
                   Victoria Island, Lagos, Federal Republic of Nigeria<br />
                   Email:{" "}
-                  <a href="mailto:legal@nexora.africa" className="legal-link">legal@nexora.africa</a>
+                  <a href="mailto:legal@nexapay.africa" className="legal-link">legal@nexapay.africa</a>
                 </p>
                 <p>
                   Related documents:{" "}
@@ -277,7 +277,7 @@ export default function TermsPage() {
               </Block>
 
               <p className="border-t border-border/60 pt-6 text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Nexora Technologies Ltd. All rights reserved.
+                © {new Date().getFullYear()} Nexa Pay Technologies Ltd. All rights reserved.
               </p>
             </div>
           </div>

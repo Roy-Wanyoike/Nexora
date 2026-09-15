@@ -5,9 +5,9 @@ import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/sections/footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Nexora",
+  title: "Privacy Policy — Nexa Pay",
   description:
-    "Nexora's NDPR 2023-compliant privacy notice explaining how we collect, use, and protect personal data.",
+    "Nexa Pay's NDPR 2023-compliant privacy notice explaining how we collect, use, and protect personal data.",
 };
 
 const LAST_UPDATED = "12 January 2026";
@@ -32,9 +32,9 @@ export default function PrivacyPage() {
             <div className="prose-legal mt-12 space-y-10">
               <p className="text-base text-muted-foreground">
                 This Privacy Notice describes how{" "}
-                <strong className="text-foreground">Nexora Technologies Ltd</strong> (&quot;Nexora&quot;,
+                <strong className="text-foreground">Nexa Pay Technologies Ltd</strong> (&quot;Nexa Pay&quot;,
                 &quot;we&quot;, &quot;us&quot;, &quot;our&quot;) collects, uses, discloses, retains,
-                and protects your personal data in connection with the Nexora payment switch
+                and protects your personal data in connection with the Nexa Pay payment switch
                 platform and related Services. It is published in accordance with the{" "}
                 <strong className="text-foreground">Nigeria Data Protection Act 2023</strong> (the
                 &quot;NDPA&quot;) and the Nigeria Data Protection Regulations (NDPR) 2019, as
@@ -43,16 +43,16 @@ export default function PrivacyPage() {
 
               <Block id="controller" title="1. Identity and Contact of the Controller">
                 <p>
-                  Nexora Technologies Ltd is the data controller responsible for your personal data
+                  Nexa Pay Technologies Ltd is the data controller responsible for your personal data
                   under the NDPA. Our contact details are:
                 </p>
                 <p>
-                  Nexora Technologies Ltd<br />
+                  Nexa Pay Technologies Ltd<br />
                   Victoria Island, Lagos, Federal Republic of Nigeria<br />
                   Email (Data Protection Officer):{" "}
-                  <a href="mailto:dpo@nexora.africa" className="legal-link">dpo@nexora.africa</a><br />
+                  <a href="mailto:dpo@nexapay.africa" className="legal-link">dpo@nexapay.africa</a><br />
                   Email (general):{" "}
-                  <a href="mailto:support@nexora.africa" className="legal-link">support@nexora.africa</a>
+                  <a href="mailto:support@nexapay.africa" className="legal-link">support@nexapay.africa</a>
                 </p>
                 <p>
                   Our Data Protection Officer (DPO) is responsible for overseeing questions relating
@@ -69,7 +69,7 @@ export default function PrivacyPage() {
                 </p>
                 <List
                   items={[
-                    "Performance of a contract: to open and operate your Nexora account, to execute your payment, payout, FX, payroll, and card instructions, and to deliver the Services you have requested (NDPA §6(1)(b));",
+                    "Performance of a contract: to open and operate your Nexa Pay account, to execute your payment, payout, FX, payroll, and card instructions, and to deliver the Services you have requested (NDPA §6(1)(b));",
                     "Compliance with legal obligations: to verify your identity (BVN, NIN, ID document), to screen against sanctions and PEP lists, to monitor transactions for money laundering and terrorism financing, and to file reports to the NFIU, CBN, and EFCC as required (NDPA §6(1)(c));",
                     "Consent: to send you non-essential marketing communications, to place non-essential cookies on your device, and to use biometric facial matching during KYC verification (NDPA §6(1)(a));",
                     "Legitimate interests: to detect, prevent, and investigate fraud; to maintain the security and integrity of the platform; and to conduct internal analytics for service improvement, provided such interests are not overridden by your rights and freedoms (NDPA §6(1)(d));",
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
                 />
                 <p>
                   Where we rely on consent, you may withdraw it at any time by contacting{" "}
-                  <a href="mailto:dpo@nexora.africa" className="legal-link">dpo@nexora.africa</a>.
+                  <a href="mailto:dpo@nexapay.africa" className="legal-link">dpo@nexapay.africa</a>.
                   Withdrawing consent will not affect the lawfulness of any processing carried out
                   before the withdrawal.
                 </p>
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
                     "Card networks (Visa, Mastercard, Verve) and card issuers involved in authorizing and settling your card transactions;",
                     "Regulators and competent authorities, including the Central Bank of Nigeria (CBN), the Nigeria Data Protection Commission (NDPC), the Nigeria Financial Intelligence Unit (NFIU), the Economic and Financial Crimes Commission (EFCC), and the Securities and Exchange Commission (SEC), where we are required to do so by law or court order;",
                     "Cloud infrastructure and sub-processors (e.g. hosting, logging, analytics, email delivery) listed in our sub-processor register, which is available on request from the DPO;",
-                    "Professional advisers (lawyers, auditors) to the extent necessary for the provision of their services to Nexora.",
+                    "Professional advisers (lawyers, auditors) to the extent necessary for the provision of their services to Nexa Pay.",
                   ]}
                 />
               </Block>
@@ -133,7 +133,7 @@ export default function PrivacyPage() {
                   safeguards such as the Standard Contractual Clauses, binding corporate rules, or
                   other lawful transfer mechanisms recognized by the NDPC. A copy of the safeguards
                   relied upon is available on request from the DPO at{" "}
-                  <a href="mailto:dpo@nexora.africa" className="legal-link">dpo@nexora.africa</a>.
+                  <a href="mailto:dpo@nexapay.africa" className="legal-link">dpo@nexapay.africa</a>.
                 </p>
               </Block>
 
@@ -176,7 +176,7 @@ export default function PrivacyPage() {
                 />
                 <p>
                   To exercise any of these rights, please contact the DPO at{" "}
-                  <a href="mailto:dpo@nexora.africa" className="legal-link">dpo@nexora.africa</a>. We
+                  <a href="mailto:dpo@nexapay.africa" className="legal-link">dpo@nexapay.africa</a>. We
                   will respond to your request within thirty (30) days, in accordance with the NDPA.
                   Where we decline a request, we will provide our reasons and inform you of your
                   right to complain.
@@ -185,7 +185,7 @@ export default function PrivacyPage() {
 
               <Block id="complaint" title="8. Right to Lodge a Complaint with the NDPC">
                 <p>
-                  If you believe that Nexora has processed your personal data in breach of the NDPA,
+                  If you believe that Nexa Pay has processed your personal data in breach of the NDPA,
                   you have the right to lodge a complaint with the Nigeria Data Protection Commission
                   (NDPC). We encourage you to contact our DPO first so that we have the opportunity
                   to investigate and resolve your concerns, but you are not obliged to do so.
@@ -246,7 +246,7 @@ export default function PrivacyPage() {
                   We may update this Privacy Notice from time to time to reflect changes in our
                   practices, the Services, or applicable law. We will notify registered Users of any
                   material change by email to the address on file and by posting a notice in the
-                  Nexora dashboard at least fourteen (14) days before the change takes effect. The
+                  Nexa Pay dashboard at least fourteen (14) days before the change takes effect. The
                   &quot;Last updated&quot; date at the top of this page indicates when this Notice
                   was last revised.
                 </p>
@@ -259,10 +259,10 @@ export default function PrivacyPage() {
                 </p>
                 <p>
                   Data Protection Officer<br />
-                  Nexora Technologies Ltd<br />
+                  Nexa Pay Technologies Ltd<br />
                   Victoria Island, Lagos, Federal Republic of Nigeria<br />
                   Email:{" "}
-                  <a href="mailto:dpo@nexora.africa" className="legal-link">dpo@nexora.africa</a>
+                  <a href="mailto:dpo@nexapay.africa" className="legal-link">dpo@nexapay.africa</a>
                 </p>
                 <p>
                   Related documents:{" "}
@@ -272,7 +272,7 @@ export default function PrivacyPage() {
               </Block>
 
               <p className="border-t border-border/60 pt-6 text-xs text-muted-foreground">
-                © {new Date().getFullYear()} Nexora Technologies Ltd. All rights reserved.
+                © {new Date().getFullYear()} Nexa Pay Technologies Ltd. All rights reserved.
               </p>
             </div>
           </div>

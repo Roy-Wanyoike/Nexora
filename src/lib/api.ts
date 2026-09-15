@@ -21,6 +21,32 @@ export function okResponse<T>(data: T, status = 200) {
   return NextResponse.json({ data }, { status });
 }
 
+/**
+ * Return a 405 Method Not Allowed response with an `Allow` header listing
+ * the methods the route actually supports. Use this as the catch-all for
+ * every HTTP method a route handler does NOT export, so clients get a
+ * standards-compliant JSON 405 instead of Next.js's empty default.
+ */
+export function methodNotAllowed(req: NextRequest, allowed: string[]) {
+  const allow = allowed.join(", ").toUpperCase();
+  const requestId = req.headers.get("x-request-id") || undefined;
+  return NextResponse.json(
+    {
+      error: `Method ${req.method} is not allowed for this endpoint.`,
+      code: "method_not_allowed",
+      allowed,
+      request_id: requestId,
+    },
+    {
+      status: 405,
+      headers: {
+        Allow: allow,
+        "x-request-id": requestId ?? "",
+      },
+    }
+  );
+}
+
 export async function parseBody<T = any>(req: NextRequest): Promise<T | null> {
   try {
     const text = await req.text();
@@ -111,22 +137,11 @@ export function randomLast4(): string {
 export function requireMasterKey(req: NextRequest): NextResponse | null {
   const expected = process.env.NEXORA_MASTER_KEY;
 
-  // No master key configured:
-  //   - dev mode → allow (with a console warning)
-  //   - production → deny hard
+  // No master key configured — ALWAYS deny (no dev bypass).
+  // Set NEXORA_MASTER_KEY in your .env file for local development.
   if (!expected) {
-    if (process.env.NODE_ENV !== "production") {
-      // Dev convenience: don't block local development. We log once per request
-      // to make the misconfiguration visible.
-      if (process.env.DEBUG_PRISMA === "1") {
-        console.warn(
-          "[auth] NEXORA_MASTER_KEY is not set — allowing master-key endpoint in dev mode only."
-        );
-      }
-      return null;
-    }
     return NextResponse.json(
-      { error: "Master key is not configured on the server.", code: "master_key_unconfigured" },
+      { error: "Master key is not configured. Set NEXORA_MASTER_KEY env var.", code: "master_key_unconfigured" },
       { status: 503 }
     );
   }
@@ -156,7 +171,7 @@ export function requireMasterKey(req: NextRequest): NextResponse | null {
 
 /** Get or create a demo customer (since we don't have real auth in this demo). */
 export async function getOrCreateDemoCustomer(): Promise<{ id: string }> {
-  const email = "john.doe@nexora.africa";
+  const email = "john.doe@nexapay.africa";
   const existing = await db.customer.findFirst({ where: { email } });
   if (existing) return { id: existing.id };
   const c = await db.customer.create({ data: { email, name: "John Doe", phone: "+2348000000000" } });

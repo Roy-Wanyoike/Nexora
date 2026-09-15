@@ -7,10 +7,10 @@ import {
 import { createForeignAccountSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
 const BANKS: Record<string, { name: string; routingLabel: string }> = {
-  USD: { name: "Nexora / Evolve", routingLabel: "routing_number" },
-  GBP: { name: "Nexora UK Ltd", routingLabel: "sort_code" },
-  EUR: { name: "Nexora EU GmbH", routingLabel: "bic" },
-  CNY: { name: "Nexora China", routingLabel: "cnaps" },
+  USD: { name: "Nexa Pay / Evolve", routingLabel: "routing_number" },
+  GBP: { name: "Nexa Pay UK Ltd", routingLabel: "sort_code" },
+  EUR: { name: "Nexa Pay EU GmbH", routingLabel: "bic" },
+  CNY: { name: "Nexa Pay China", routingLabel: "cnaps" },
 };
 
 const ROUTING: Record<string, string> = {

@@ -84,6 +84,16 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Health check endpoint is exempt from rate limiting — orchestrator probes
+  // (k8s liveness/readiness, Docker HEALTHCHECK, load balancer checks) must
+  // always get a 200, never a 429.
+  if (pathname === "/api/health") {
+    const res = NextResponse.next();
+    res.headers.set("x-request-id", uuid());
+    res.headers.set("cache-control", "no-store");
+    return res;
+  }
+
   // Generate a request ID for tracing
   const requestId = uuid();
   const res = NextResponse.next();
@@ -93,7 +103,7 @@ export function middleware(req: NextRequest) {
   res.headers.set("x-content-type-options", "nosniff");
   res.headers.set("x-frame-options", "DENY");
   res.headers.set("referrer-policy", "no-referrer");
-  res.headers.set("x-powered-by", "Nexora");
+  res.headers.set("x-powered-by", "Nexa Pay");
 
   // Rate limit key: prefer API key, fall back to IP
   const mode = getApiKeyMode(req);

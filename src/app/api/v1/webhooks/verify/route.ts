@@ -16,6 +16,8 @@ import { verifyWebhookSchema, formatZodError } from "@/lib/schemas";
  * (replay-window guard), or if the digests do not match (constant-time).
  */
 export async function POST(req: NextRequest) {
+  const secret = process.env.NEXORA_WEBHOOK_SECRET;
+  if (!secret) return errorResponse("Webhook secret not configured. Set NEXORA_WEBHOOK_SECRET env var.", 503, "not_configured");
   const key = await authenticate(req);
   if (!key) return errorResponse("Invalid or missing API key.", 401, "auth_error");
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Comprehensive API test suite for Nexora
+# Comprehensive API test suite for Nexa Pay
 set -e
 
 BASE="http://localhost:3000"

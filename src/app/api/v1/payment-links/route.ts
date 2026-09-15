@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const responseBody = {
     id,
     object: "payment_link",
-    url: `https://pay.nexora.africa/l/${slug}`,
+    url: `https://pay.nexapay.africa/l/${slug}`,
     amount: body.amount,
     currency: body.currency,
     title: body.title || "Payment",

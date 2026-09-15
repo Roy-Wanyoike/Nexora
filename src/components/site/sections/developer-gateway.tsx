@@ -424,7 +424,7 @@ function ApiKeysPanel() {
   const visibleKeys = keys;
 
   return (
-    <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+    <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <KeyRound className="h-4 w-4 text-brand" />
@@ -609,7 +609,7 @@ function EndpointExplorer() {
   };
 
   return (
-    <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+    <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
       <div className="flex items-center gap-2">
         <Terminal className="h-4 w-4 text-brand" />
         <p className="text-sm font-semibold">Endpoint Explorer</p>
@@ -618,9 +618,9 @@ function EndpointExplorer() {
         </span>
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[260px_1fr]">
+      <div className="mt-4 grid min-w-0 gap-5 lg:grid-cols-[260px_1fr]">
         {/* Endpoint list */}
-        <div className="flex flex-col gap-1 thin-scroll max-h-[420px] overflow-y-auto pr-1">
+        <div className="flex min-w-0 flex-col gap-1 thin-scroll max-h-[420px] overflow-y-auto pr-1">
           {ENDPOINTS.map((e) => (
             <button
               key={e.id}
@@ -643,7 +643,7 @@ function EndpointExplorer() {
         </div>
 
         {/* Detail */}
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           {/* Header */}
           <div>
             <div className="flex items-center gap-2">
@@ -747,8 +747,8 @@ function WebhooksPanel() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-      <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_1fr]">
+      <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
         <div className="flex items-center gap-2">
           <Webhook className="h-4 w-4 text-brand" />
           <p className="text-sm font-semibold">Webhook events</p>
@@ -770,7 +770,7 @@ function WebhooksPanel() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+      <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">Sample payload</p>
           <CopyButton text={JSON.stringify(sample, null, 2)} />
@@ -823,7 +823,7 @@ export function DeveloperGateway() {
       </div>
 
       {/* Quickstart / SDKs */}
-      <div className="mt-6 rounded-3xl border border-border/60 bg-gradient-to-br from-card/80 to-background/40 p-6 backdrop-blur">
+      <div className="mt-6 overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-card/80 to-background/40 p-6 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-display text-lg font-semibold">Quickstart in 3 steps</p>
@@ -838,9 +838,9 @@ export function DeveloperGateway() {
           </a>
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[1.1fr_1fr]">
+        <div className="mt-5 grid min-w-0 gap-3 lg:grid-cols-[1.1fr_1fr]">
           {/* SDK tabs */}
-          <div className="rounded-2xl border border-border/40 bg-background/30 p-4">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-border/40 bg-background/30 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">1. Install SDK</p>
             <div className="mt-2 flex flex-wrap gap-1">
               {SDKS.map((s) => (
@@ -863,7 +863,7 @@ export function DeveloperGateway() {
           </div>
 
           {/* First call */}
-          <div className="rounded-2xl border border-border/40 bg-background/30 p-4">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-border/40 bg-background/30 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">2. Make your first call</p>
             <pre className="mt-2 thin-scroll overflow-x-auto rounded-lg border border-border/40 bg-background/40 p-3 font-mono text-[11px] leading-relaxed">
 {`import NexaPay from "@nexapay/node";
@@ -900,8 +900,8 @@ console.log(payment.status); // → "succeeded"`}
       </div>
 
       {/* Rate limits + status */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+      <div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-3">
+        <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-brand" />
             <p className="text-sm font-semibold">Rate limits</p>
@@ -915,7 +915,7 @@ console.log(payment.status); // → "succeeded"`}
           <p className="mt-3 text-[10px] text-muted-foreground">429 response includes <code className="font-mono">Retry-After</code> header.</p>
         </div>
 
-        <div className="rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
+        <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/40 p-5 backdrop-blur">
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-brand" />
             <p className="text-sm font-semibold">API versioning</p>

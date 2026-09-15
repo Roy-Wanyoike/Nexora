@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Sora, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -64,7 +64,7 @@ export default function RootLayout({
         className={`${inter.variable} ${sora.variable} ${jbm.variable} antialiased bg-background text-foreground font-sans`}
       >
         {children}
-        <Toaster />
+        
         <SonnerToaster richColors position="top-right" />
       </body>
     </html>

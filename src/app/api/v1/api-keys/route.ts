@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   // Find or create demo user
-  let user = await db.user.findFirst({ where: { email: "john.doe@nexora.africa" } });
+  let user = await db.user.findFirst({ where: { email: "john.doe@nexapay.africa" } });
   if (!user) {
-    user = await db.user.create({ data: { email: "john.doe@nexora.africa", name: "John Doe" } });
+    user = await db.user.create({ data: { email: "john.doe@nexapay.africa", name: "John Doe" } });
   }
 
   const rawKey = generateApiKey(body.mode);
