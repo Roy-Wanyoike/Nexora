@@ -1,4 +1,4 @@
-# Nexora — One switch for every payment
+# Nexa Pay — One switch for every payment
 
 > The African payment switch platform. Centralize cards, foreign accounts (USD/GBP/EUR/CNY), crypto, eSIM, payroll, and developer APIs in one dashboard.
 
@@ -202,4 +202,4 @@ MIT — see [LICENSE](./LICENSE).
 
 ## 🙏 Credits
 
-Inspired by [payswitch.africa](https://payswitch.africa/) (Quidvis Ltd). "Nexora" is an independent project.
+Inspired by [payswitch.africa](https://payswitch.africa/) (Quidvis Ltd). "Nexa Pay" is an independent project.

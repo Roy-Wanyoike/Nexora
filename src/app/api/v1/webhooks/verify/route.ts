@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Compute HMAC-SHA256 over `${t}.${payload}` with the webhook secret.
-  const secret = process.env.NEXORA_WEBHOOK_SECRET || "dev-secret";
+  // `secret` was already validated at the top of the handler (line 19).
   const payload = String(body.payload);
   const expected = createHmac("sha256", secret)
     .update(`${t}.${payload}`)
