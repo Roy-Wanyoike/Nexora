@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
     kyc_status: updated.kycStatus,
     kyc_tier: updated.kycTier,
     verified_at: updated.kycVerifiedAt?.toISOString() ?? null,
-  });
+  }, 201);
 }
 
 /** GET /api/v1/kyc/verify-bvn — return the current KYC status of the demo customer. */

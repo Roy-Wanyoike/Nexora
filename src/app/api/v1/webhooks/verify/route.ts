@@ -10,8 +10,9 @@ import { verifyWebhookSchema, formatZodError } from "@/lib/schemas";
  * Verifies a Stripe-style webhook signature header of the form:
  *   `t=<unix-seconds>,v1=<hex-sha256-hmac>`
  * against the request payload using HMAC-SHA256 with
- * `process.env.NEXORA_WEBHOOK_SECRET` (falls back to "dev-secret" in dev).
+ * `process.env.NEXORA_WEBHOOK_SECRET`.
  *
+ * Returns 503 if NEXORA_WEBHOOK_SECRET is not set — there is NO fallback.
  * Rejects if the timestamp is more than 300s off from the current time
  * (replay-window guard), or if the digests do not match (constant-time).
  */

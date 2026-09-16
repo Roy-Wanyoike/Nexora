@@ -3,32 +3,34 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: nexora
-      POSTGRES_PASSWORD: nexora
-      POSTGRES_DB: nexora
+      POSTGRES_USER: ${POSTGRES_USER:-nexora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-nexora}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexora} -d ${POSTGRES_DB:-nexora}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "5432:5432"
+    # No ports exposed — only reachable from the app service via the compose network
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "6379:6379"
+    # No ports exposed — only reachable from the app service via the compose network
+    networks:
+      - internal
 
   app:
     build: .
@@ -41,13 +43,27 @@ services:
     env_file:
       - .env
     environment:
-      # Override the dev SQLite URL with the compose Postgres service.
-      DATABASE_URL: postgresql://nexora:nexora@postgres:5432/nexora?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nexora}?schema=public
       NODE_ENV: production
       PORT: "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     ports:
       - "3000:3000"
+    networks:
+      - internal
+      - edge
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  internal:
+    driver: bridge
+  edge:
+    driver: bridge

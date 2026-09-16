@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ShieldCheck, Loader2, CheckCircle2, XCircle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,15 +35,7 @@ export function KycForm() {
   const [status, setStatus] = useState<KycStatus>("idle");
   const [message, setMessage] = useState<string>("");
   const [result, setResult] = useState<VerifyResponse | null>(null);
-  const [apiKey, setApiKey] = useState<string>("");
-
-  // Fetch the sandbox API key on mount (no hardcoded key in client bundle)
-  useEffect(() => {
-    fetch("/api/v1/sandbox-key")
-      .then((r) => r.json())
-      .then((d) => setApiKey(d.data?.key || ""))
-      .catch(() => {});
-  }, []);
+  
 
   const bvnValid = /^\d{0,11}$/.test(bvn);
   const canSubmit =
@@ -58,11 +50,10 @@ export function KycForm() {
     setResult(null);
 
     try {
-      const res = await fetch("/api/v1/kyc/verify-bvn", {
+      const res = await fetch("/api/v1/kyc/verify-bvn-public", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           bvn,

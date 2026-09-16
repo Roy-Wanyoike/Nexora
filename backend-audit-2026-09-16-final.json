@@ -1,0 +1,248 @@
+{
+  "audit_metadata": {
+    "auditor": "Staff Backend Engineer (sub-agent)",
+    "scope": "src/app/api/v1/* + src/lib/* + src/middleware.ts + prisma/schema.prisma + package.json + .env",
+    "server_under_test": "http://localhost:3000 (Next 16.1.3, Turbopack standalone build, NODE_ENV=production)",
+    "date": "2026-09-16",
+    "test_keys": {
+      "test_key": "nxp_test_8h2k9nbq01def456abc789",
+      "master_key_header": "x-master-key: super-secret-master-key-123"
+    },
+    "environment_setup_required": "A fresh checkout CANNOT boot without intervention — package.json pinned prisma@^8.0.0-rc.15 (the new Prisma Developer Platform CLI) which does NOT support `prisma generate` for the legacy `prisma-client-js` generator in schema.prisma. Every DB-touching endpoint returns HTTP 500 with `@prisma/client did not initialize yet` until prisma is downgraded to 6.x and `prisma generate + prisma db push + seed` are run. I downgraded prisma to 6.11.1, generated the client, pushed the schema, ran scripts/seed.ts, and added NEXORA_MASTER_KEY/NEXORA_SANDBOX_KEY/NEXORA_WEBHOOK_SECRET to .env so the audit could execute end-to-end.",
+    "build_pipeline": {
+      "bun_run_lint": "exit 0 (no warnings)",
+      "bunx_tsc_--noEmit": "exit 0 (no type errors)",
+      "bun_run_build": "exit 0 (28 routes generated, standalone build OK)"
+    },
+    "prisma_provider": "sqlite (prisma/schema.prisma line 9: `provider = \"sqlite\"`; DATABASE_URL=file:/home/z/my-project/db/custom.db)",
+    "rate_limit_backend": "in-memory Map (per-process) in src/middleware.ts; /api/health is exempt (verified live: 200 rapid GETs → 200 200s, zero 429s)",
+    "curl_results": {
+      "GET /api/health": "200 {status:ok, db:up, latency_ms:1-17, version:0.2.1}",
+      "POST /api/v1/payments": "201 in dev (synthetic checkout URL); 502 in prod if gateway unreachable. Rate-test of 120 rapid POSTs: 92×201, 28×429 → rate limit engaged at 100/min test tier",
+      "GET /api/v1/transactions": "200 {object:list, has_more:false, ...}",
+      "POST /api/v1/payment-links": "201 ✓",
+      "POST /api/v1/virtual-cards": "201 ✓",
+      "POST /api/v1/foreign-accounts": "201 ✓",
+      "POST /api/v1/payouts": "201 ✓",
+      "POST /api/v1/payroll/runs": "201 ✓ (but see issue: items not persisted)",
+      "POST /api/v1/webhooks/verify (verified=true)": "201 ✓ (with valid HMAC + current timestamp)",
+      "POST /api/v1/webhooks/verify (verified=false)": "200 ✗ (malformed_signature, bad_timestamp, timestamp_out_of_range, signature_mismatch all return 200 despite creating a WebhookEvent row)",
+      "GET /api/v1/api-keys (with master)": "200 (returns keyPrefix only, no raw key)",
+      "GET /api/v1/api-keys (no master)": "401 {error:Missing x-master-key header., code:auth_error}",
+      "GET /api/v1/sandbox-key": "200 unauthenticated → leaks working test key nxp_test_8h2k9nbq01def456abc789; in test runs the anon rate-limit bucket (30/min) was exhausted and the endpoint returned 429",
+      "GET /api/v1/nonexistent (catch-all 404)": "404 JSON {error:Not found, code:not_found, path, request_id} ✓",
+      "GET /api/v1/payments (405 expect)": "405 with Allow:POST + JSON body ✓ (only correct route)",
+      "POST /api/v1/kyc/verify-bvn": "200 ✗ (updates Customer + creates audit log but returns 200 not 201)"
+    },
+    "method_coverage_matrix": {
+      "POST-only routes that ALSO export PUT methodNotAllowed": "[] (none — payment-links, virtual-cards, foreign-accounts, payouts, payroll/runs, kyc/verify-bvn, webhooks/verify all miss PUT)",
+      "GET-only routes with full methodNotAllowed coverage": "[] (transactions, sandbox-key, /api, /api/health all rely on Next.js default 405 — empty body, no Allow header)",
+      "OPTIONS_autoreply_consistency": "Next.js OPTIONS auto-response advertises every exported method symbol (including methodNotAllowed stubs). For /payments it returns `Allow: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT` but the actual 405 response says `Allow: POST` — contradictory."
+    },
+    "rate_limit_stress_test": {
+      "120 rapid POSTs to /api/v1/payments (auth'd test tier=100/min)": "92×201, 28×429 — rate limit engaged ✓",
+      "60 rapid POSTs to /api/v1/webhooks/verify (anon tier=30/min)": "27×401, 33×429 — anon limit engaged ✓",
+      "60 rapid GETs to /api/v1/sandbox-key (anon tier=30/min)": "60×429 — all blocked because bucket already exhausted by prior anon traffic on same IP",
+      "200 rapid GETs to /api/health (exempt)": "200×200 — exempt ✓"
+    }
+  },
+
+  "summary": {
+    "verdict": "Not production-ready. Build, types, and lint pass cleanly. /api/health, 404 catch-all, /payments 405-Allow, idempotency conflict 409, and rate limiting are all working. But: (1) the project as-checked-out cannot boot — prisma CLI v8 doesn't support the legacy generator; (2) every other POST-only/GET-only route returns Next.js's empty 405 with no Allow header (RFC 7231 violation, only /payments is correct); (3) most POST routes miss the PUT methodNotAllowed stub; (4) KYC verify-bvn and webhooks/verify return inconsistent status codes; (5) /sandbox-key leaks a working key and is starved by the shared anon rate-limit bucket; (6) the gateway call returns 502 in production mode whenever the upstream is unreachable; (7) OPTIONS preflight advertises methods that the route handler then rejects with a different Allow header; (8) payroll items are not persisted; (9) foreign-account EUR numbers use a hardcoded DE89 prefix that does not form a valid IBAN; (10) the middleware file convention is deprecated in Next 16.",
+    "passes": [
+      "bun run lint exit 0",
+      "bunx tsc --noEmit exit 0",
+      "bun run build exit 0 (28 routes, standalone OK)",
+      "POST creates on payments (dev mode), payment-links, virtual-cards, foreign-accounts, payouts, payroll/runs, api-keys, webhooks/verify (verified=true) all return 201",
+      "/api/health is exempt from rate limiting (verified: 200/200)",
+      "404 catch-all returns JSON {error,code,path,request_id} for GET/POST/DELETE/HEAD",
+      "GET /api/v1/api-keys with master key returns keyPrefix only",
+      "/payments has explicit 405 with Allow:POST + JSON body for all non-POST methods (only correct route)",
+      "HMAC-SHA256 webhook verification is constant-time and rejects out-of-range timestamps (±300s)",
+      "Master key check uses constant-time SHA-256 compare and rejects when NEXORA_MASTER_KEY is unset",
+      "Rate limiting engages correctly: 100/min for auth'd test keys, 30/min for anon"
+    ],
+    "fails": [
+      "Fresh checkout CANNOT boot — prisma@^8.0.0-rc.15 (package.json) doesn't support `prisma generate` for the legacy `prisma-client-js` generator; every DB endpoint returns HTTP 500 until prisma is downgraded to 6.x",
+      "GET-only routes (transactions, sandbox-key, /api, /api/health) return 405 with EMPTY body and NO Allow header — Next.js default, not the JSON methodNotAllowed envelope used elsewhere",
+      "Most POST routes miss the PUT methodNotAllowed stub — payment-links, virtual-cards, foreign-accounts, payouts, payroll/runs, kyc/verify-bvn, webhooks/verify all return Next.js default 405 (empty body, no Allow) for PUT",
+      "/api/v1/api-keys route has NO methodNotAllowed for PUT/PATCH/DELETE (only GET+POST exported)",
+      "POST /api/v1/kyc/verify-bvn returns 200, not 201, despite updating a Customer and creating an AuditLog row",
+      "POST /api/v1/webhooks/verify returns 201 only when verified=true; 200 on every verified=false path, despite all paths creating a WebhookEvent row",
+      "/api/v1/sandbox-key leaks the working test API key to anyone unauthenticated AND is rate-limited at 30/min shared with all other anon traffic — easily DoS'd or blocked",
+      "POST /api/v1/payments returns 502 in production mode when TheTeller gateway is unreachable (no graceful degradation in prod, only in dev)",
+      "OPTIONS preflight on /payments, /kyc/verify-bvn, /virtual-cards advertises methods (DELETE/PATCH/PUT) that the route then rejects with `Allow: POST` — OPTIONS Allow header lies about the route's real capabilities",
+      "POST /api/v1/payroll/runs computes totalAmount and itemsCount but does NOT persist the items array — items are silently dropped",
+      "POST /api/v1/foreign-accounts for EUR uses `DE89` + randomId(16) which is not a valid IBAN (no check digits, no bank-code structure)",
+      "Idempotency replay always returns 200 even when the original response was 201 Created (api.ts:232-240) — replays of POST creates do NOT return 201",
+      "src/middleware.ts uses the deprecated `middleware` file convention — Next 16 logs a deprecation warning on every boot",
+      "Foreign-account EUR account_number is generated with `DE89${randomId(16, '')}` (foreign-accounts/route.ts:96); USD/GBP/CNY use Math.random() (line 97) — not cryptographically secure",
+      "Idempotency check deletes expired records via full-table scan on EVERY idempotency-keyed request (api.ts:210-212) — O(N) per request, no background cleanup",
+      "POST /api/v1/webhooks/verify persists a WebhookEvent row on EVERY call, including failed verifications (route.ts:95-105) — pollutes the webhook event table with unverified/malformed attempts",
+      "No request body size limit at the middleware layer — 5MB POST body to /api/v1/payments is accepted and parsed (caught only by Zod's 500-char limit on `description`); other routes with looser schemas would be vulnerable"
+    ]
+  },
+
+  "issues": [
+    {
+      "id": 1,
+      "title": "Fresh checkout cannot boot: prisma@^8.0.0-rc.15 in package.json does not support `prisma generate` for the legacy prisma-client-js generator in schema.prisma",
+      "severity": "critical",
+      "file": "package.json:40 (prisma devDep); prisma/schema.prisma:4-6 (generator client); src/lib/db.ts:1",
+      "description": "package.json pins `prisma: \"^8.0.0-rc.15\"` but `@prisma/client: \"^6.11.1\"` and schema.prisma uses `provider = \"prisma-client-js\"`. Prisma 8.0.0-rc.15 is the new Prisma Developer Platform CLI — it has NO `generate` subcommand. Running `bunx prisma generate` returns `CLI.UNKNOWN_COMMAND: No command registered for 'generate'`. As a result `@prisma/client` is the ungenerated stub whose constructor throws `@prisma/client did not initialize yet. Please run \"prisma generate\" and try to import it again.` Every endpoint that touches the DB (every /api/v1/* route, /api/health) returns HTTP 500 with that error in the stack trace. The package.json scripts `db:generate`, `db:push`, `db:migrate`, `db:reset` all invoke subcommands that don't exist in v8. I had to `bun add -d prisma@6.11.1 --force` to make the project boot at all.",
+      "fix": "Pin `prisma` to `^6.11.1` in package.json to match `@prisma/client`. Run `bun install`, `bunx prisma generate`, `bunx prisma db push`, `bun run scripts/seed.ts`. If the project intends to migrate to Prisma 8, also migrate schema.prisma's `generator client { provider = \"prisma-client-js\" }` to the new Prisma Developer Platform generator syntax — but that is a major version bump, not a drop-in."
+    },
+    {
+      "id": 2,
+      "title": "GET-only routes return Next.js default 405 (empty body, no Allow header) — RFC 7231 §6.5.5 violation",
+      "severity": "high",
+      "file": "src/app/api/v1/transactions/route.ts; src/app/api/v1/sandbox-key/route.ts; src/app/api/route.ts; src/app/api/health/route.ts",
+      "description": "Verified live with curl: `POST /api/v1/transactions -d '{}' -H $AUTH` → 405 with empty body and NO Allow header. `PUT /api/v1/sandbox-key` → 405 empty body, no Allow. `POST /api/health` → 405 empty body, no Allow. These routes only export GET. Next.js's automatic 405 for unexported methods sends no `Allow` header and no JSON body. RFC 7231 §6.5.5: 'The server MUST generate an Allow header field in a 405 response containing the list of currently valid methods for the target resource.' Only src/app/api/v1/payments/route.ts:15-18 exports explicit GET/PUT/PATCH/DELETE handlers that call `methodNotAllowed(req, ['POST'])` and emit `Allow: POST` + a JSON body — every other route should follow that pattern but does not.",
+      "fix": "For every route handler that does NOT export a given HTTP method, add an explicit `export const FOO = (req) => methodNotAllowed(req, ['GET'])` (or whichever methods ARE supported). A cleaner fix is a single shared `withAllowedMethods(['GET'])` wrapper applied to every route file. Same fix is needed for `/api/health`, `/api`, and `/api/v1/sandbox-key` (which are GET-only)."
+    },
+    {
+      "id": 3,
+      "title": "Most POST routes miss the `PUT` methodNotAllowed stub — PUT returns Next.js default 405 (empty body, no Allow header)",
+      "severity": "high",
+      "file": "src/app/api/v1/payment-links/route.ts:59-61; src/app/api/v1/virtual-cards/route.ts:123-124; src/app/api/v1/foreign-accounts/route.ts:141-142; src/app/api/v1/payouts/route.ts:162-163; src/app/api/v1/payroll/runs/route.ts:126-127; src/app/api/v1/kyc/verify-bvn/route.ts:225-226; src/app/api/v1/webhooks/verify/route.ts:127-129",
+      "description": "Verified live: `PUT /api/v1/payment-links` → 405 with EMPTY body, NO Allow header. `PUT /api/v1/virtual-cards` → 405 empty. `PUT /api/v1/foreign-accounts` → 405 empty. `PUT /api/v1/payouts` → 405 empty. `PUT /api/v1/payroll/runs` → 405 empty. `PUT /api/v1/kyc/verify-bvn` → 405 empty. `PUT /api/v1/webhooks/verify` → 405 empty. Each of these routes exports `PATCH` and `DELETE` (which call `methodNotAllowed(req, ['POST'])`) but does NOT export `PUT`. As a result, PUT falls through to Next.js's default 405 — no JSON envelope, no Allow header — while PATCH and DELETE on the same route return the JSON 405 envelope. The response shape is inconsistent within a single route.",
+      "fix": "Add `export async function PUT(req: NextRequest) { return methodNotAllowed(req, ['POST']); }` (or the actual list of allowed methods) to each of those seven route files. Same applies to the [id] route files (payments/[id], payouts/[id], payroll/runs/[id], virtual-cards/[id], foreign-accounts/[id], api-keys/[id]) which export only GET or only DELETE."
+    },
+    {
+      "id": 4,
+      "title": "/api/v1/api-keys route is missing PUT, PATCH, and DELETE methodNotAllowed stubs",
+      "severity": "high",
+      "file": "src/app/api/v1/api-keys/route.ts (only GET and POST exported, lines 10 and 44)",
+      "description": "Verified live: `PUT /api/v1/api-keys -H $MASTER` → 405 empty body, no Allow. `PATCH /api/v1/api-keys` → 405 empty. `DELETE /api/v1/api-keys` → 405 empty. The route exports only GET (line 10) and POST (line 44); there are no methodNotAllowed stubs for PUT/PATCH/DELETE. Note that the sibling /api/v1/api-keys/[id]/route.ts DOES export DELETE (revoke a key). So a client who tries to DELETE on the collection (instead of the [id] resource) gets a confusing empty 405 with no guidance about the correct endpoint.",
+      "fix": "Add `export const PUT = PATCH = (req) => methodNotAllowed(req, ['GET', 'POST']);` and `export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ['GET', 'POST']); }` to src/app/api/v1/api-keys/route.ts. The 405 body should mention that DELETE is supported on /api/v1/api-keys/[id]."
+    },
+    {
+      "id": 5,
+      "title": "POST /api/v1/kyc/verify-bvn returns 200 instead of 201 — inconsistent with other POST creates",
+      "severity": "high",
+      "file": "src/app/api/v1/kyc/verify-bvn/route.ts:177-182",
+      "description": "Verified live: `POST /api/v1/kyc/verify-bvn -d '{\"bvn\":\"12345678901\"}' -H $AUTH` → 200 `{data:{customer_id, kyc_status:verified, kyc_tier:1, verified_at}}`. The handler updates a Customer row (sets bvnHash, bvnVerifiedAt, kycStatus='verified', kycTier=1, kycVerifiedAt, idType, idNumber, pepStatus, sanctionsStatus) and writes an AuditLog row (line 157-171), but returns `okResponse({...})` (line 177) without specifying a status, so it defaults to 200. Every other POST create in the API returns 201 (payments:189, payment-links:56, virtual-cards:121, foreign-accounts:139, payouts:149, payroll/runs:124, api-keys:93, webhooks/verify:124). The audit criterion 'Do all POST creates return 201?' fails for this endpoint.",
+      "fix": "Change line 177 to `return okResponse({ ... }, 201);` to match the rest of the API. Or, if you decide that KYC verification is a state update rather than a resource create, document that decision and return 200 consistently — but then also drop the audit_log creation, since 200 implies no state changed."
+    },
+    {
+      "id": 6,
+      "title": "POST /api/v1/webhooks/verify returns inconsistent status codes (201 when verified=true, 200 on every verified=false path) despite always creating a WebhookEvent row",
+      "severity": "high",
+      "file": "src/app/api/v1/webhooks/verify/route.ts:46-53 (malformed_signature 200); :56-63 (bad_timestamp 200); :66-74 (timestamp_out_of_range 200); :107-124 (verified=true path 201)",
+      "description": "Verified live with a 4-call matrix: (A) valid HMAC + current timestamp → 201 `{verified:true, event_type:payment.succeeded}`; (B) t=999,v1=deadbeef → 200 `{verified:false, reason:timestamp_out_of_range}`; (C) signature='garbage' → 200 `{verified:false, reason:malformed_signature}`; (D) t=123,v1=abc → 200 `{verified:false, reason:timestamp_out_of_range}`. Critically, ALL four paths create a WebhookEvent row (route.ts:95-105 runs unconditionally before the verified branch). If creating a WebhookEvent warrants 201, all paths should return 201. If it does not, the happy path should also return 200. The current behavior makes the response status a poor signal for 'did this call mutate state?' — a client cannot distinguish a 200 that created a row from a 200 that did not.",
+      "fix": "Either: (a) always return 201 when a WebhookEvent row was created (move the `return okResponse({...}, 201)` to after the create, with `verified` reflecting the actual verification result); OR (b) only create a WebhookEvent row when verified=true and return 401/422 for the failure paths (don't persist unverifiable attempts, which currently pollute the WebhookEvent table — see issue 13)."
+    },
+    {
+      "id": 7,
+      "title": "/api/v1/sandbox-key leaks a working test API key unauthenticated AND is starved by the shared anon rate-limit bucket",
+      "severity": "critical",
+      "file": "src/app/api/v1/sandbox-key/route.ts; src/middleware.ts:62 (RATE_LIMIT_ANON=30); src/middleware.ts:110 (rlKey fallback to `ip:${ip}`)",
+      "description": "Verified live: `GET /api/v1/sandbox-key` → 200 `{data:{key:\"nxp_test_8h2k9nbq01def456abc789\", mode:\"test\"}}` with no auth required. The returned key is the SAME key seeded by scripts/seed.ts:16 and used as the bearer token throughout the test suite — anyone on the internet who can reach this endpoint can create payments, payouts, virtual cards, foreign accounts, payroll runs, and KYC records on the demo DB. On top of that, the endpoint has NO Authorization header, so it falls into the anon tier (`RATE_LIMIT_ANON=30`, middleware.ts:62) and shares a single `ip:unknown` bucket with all other unauthenticated traffic on the same IP. In my rate-test, after exhausting the bucket with 60 POSTs to /webhooks/verify (also no-auth), 60 subsequent GETs to /sandbox-key returned 60×429 — the public endpoint explorer would be unable to fetch a key while any other anon traffic is hitting the API. The endpoint is simultaneously too open (leaks a key) and too closed (rate-limited into uselessness).",
+      "fix": "Three independent fixes: (1) rotate NEXORA_SANDBOX_KEY to a per-environment random with a short TTL, minted via a separate /v1/sandbox-key/issue endpoint that requires a master key or referrer check; (2) exempt /api/v1/sandbox-key from the anon rate limit (add it to the same exemption as /api/health in middleware.ts:90) OR give it its own higher bucket (e.g. 100/min); (3) at minimum, gate the endpoint behind a same-origin/Referer check so only the dashboard can fetch it."
+    },
+    {
+      "id": 8,
+      "title": "POST /api/v1/payments returns 502 in production mode when TheTeller gateway is unreachable — no graceful degradation in prod",
+      "severity": "high",
+      "file": "src/app/api/v1/payments/route.ts:126-153",
+      "description": "Verified live: with `NODE_ENV=production` (the standalone server.js sets `process.env.NODE_ENV = 'production'`), `POST /api/v1/payments` returns 502 `{error:\"Gateway initialization failed\", code:\"gateway_error\", details:{gateway_error:\"no_checkout_url\"}}`. The route calls `initiatePayment()` (gateways/theteller.ts); when the gateway is unreachable, `gateway.ok` is false and `gateway.checkoutUrl` is undefined. The code then has three branches (route.ts:119-144): (a) success — update gatewayTxnId; (b) `NODE_ENV !== 'production'` — synthesize a checkout URL for dev demo; (c) `NODE_ENV === 'production'` — mark payment as failed and return 502. The dev fallback works (verified in `next dev`: same payload returned 201 with synthetic checkout URL), but in production the route is brittle: any network blip, DNS failure, or TheTeller maintenance window turns every payment create into a 502, even though the payment row is already created in `pending` state (line 78-90) and could be driven via /callback later. The 502 is also misleading — the payment IS created, just the gateway initialization failed; the caller cannot tell from a 502 whether the DB row exists.",
+      "fix": "Decouple 'payment row created' from 'gateway initialized': return 201 with `status: 'pending'` and a `gateway_status: 'initialization_failed'` field, and let the client retry initialization via a separate /v1/payments/[id]/initialize endpoint or the /callback route. OR: queue the gateway call as a background job (Temporal workflow, per the existing ARCHITECTURE.md recommendation) and return 201 immediately. At minimum, return 201 with `gateway_error` details instead of 502, since the resource WAS created."
+    },
+    {
+      "id": 9,
+      "title": "OPTIONS preflight (Next.js auto-response) advertises methods that the route handler then rejects with a different Allow header",
+      "severity": "medium",
+      "file": "src/app/api/v1/payments/route.ts; src/app/api/v1/kyc/verify-bvn/route.ts; src/app/api/v1/virtual-cards/route.ts",
+      "description": "Verified live: `OPTIONS /api/v1/payments` → 204 with `Allow: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT` — advertising 7 methods. But the route ONLY actually supports POST. `GET /api/v1/payments` → 405 with `Allow: POST`. `PUT /api/v1/payments` → 405 with `Allow: POST`. So the OPTIONS preflight and the 405 response disagree about what the route supports. Same issue on /kyc/verify-bvn (OPTIONS says `Allow: DELETE, GET, HEAD, OPTIONS, PATCH, POST` but DELETE/PATCH return 405 with `Allow: POST`). Same on /virtual-cards (OPTIONS says `Allow: DELETE, GET, HEAD, OPTIONS, PATCH, POST` but PUT returns 405 with empty body, and PATCH/DELETE return 405 with `Allow: POST`). Root cause: Next.js's automatic OPTIONS handler enumerates every exported method symbol (including the methodNotAllowed stubs) and lists them as 'allowed'. A client using OPTIONS to discover capabilities will be misled.",
+      "fix": "Override the OPTIONS handler explicitly on every route file to return the SAME `Allow` header that the methodNotAllowed stubs return. E.g. for /payments: `export const OPTIONS = (req) => methodNotAllowed(req, ['POST'])` (or a dedicated 204 response with `Allow: POST`). Do not rely on Next.js's auto-generated OPTIONS, which lists exported symbols rather than semantically-supported methods."
+    },
+    {
+      "id": 10,
+      "title": "POST /api/v1/payroll/runs does NOT persist the items array — items are silently dropped",
+      "severity": "high",
+      "file": "src/app/api/v1/payroll/runs/route.ts:91-100",
+      "description": "Verified by code inspection + DB query: the handler computes `totalMinor` (line 80-83) and `itemsCount` (line 84), creates a PayrollRun row with `totalAmount`, `totalCurrency`, `itemsCount`, `scheduledFor`, `userId` (line 91-100), and returns 201 with the totals (line 112-121). But the individual `items` array (each employee + amount + currency) is NEVER persisted — there is no `PayrollItem` model in prisma/schema.prisma and no `db.payrollItem.create()` call. The AuditLog entry (line 102-110) records the totals but not the individual line items. A user who POSTs a 50-item payroll run, then queries for the run later, sees only the aggregate totals — there is no way to recover the per-employee breakdown. The mixed-currency check (line 71-78) also enforces a constraint that the schema doesn't enforce, so a future caller bypassing validation could create a corrupt run.",
+      "fix": "Add a `PayrollItem` model to prisma/schema.prisma with fields {id, payrollRunId, employee, amount, currency, createdAt} and a `@@index([payrollRunId])`. In the POST handler, create the PayrollRun row and then `db.payrollItem.createMany({data: body.items.map(...)})` inside the same `$transaction`. Update the GET /api/v1/payroll/runs/[id] route to include the items in the response."
+    },
+    {
+      "id": 11,
+      "title": "POST /api/v1/foreign-accounts for EUR generates an invalid IBAN with a hardcoded 'DE89' prefix",
+      "severity": "medium",
+      "file": "src/app/api/v1/foreign-accounts/route.ts:95-97",
+      "description": "Line 95-97: `const accountNumber = cur === 'EUR' ? ('DE89' + randomId(16, '')) : String(Math.floor(1_000_000_000 + Math.random() * 8_999_999_999))`. The EUR branch concatenates the literal string 'DE89' (the IBAN example prefix from ISO 13616 — every IBAN tutorial uses 'DE89 3704 0044 0532 0130 00' as the example) with 16 random alphanumeric chars. The result is NOT a valid IBAN: a real IBAN is `CC + 2 check digits + BBAN (basic bank account number)`. The DE89 example happens to have valid check digits for the example BBAN, but 'DE89' + a random 16-char alphanumeric string will not have valid check digits for the random BBAN. Verified live: POST /api/v1/foreign-accounts -d '{\"currency\":\"EUR\"}' returned 201 with account_number = \"DE89kf6pb6ntfbg1haqq\" — 21 chars, mixing letters and digits in a way no real German IBAN would. (Real German IBANs are 22 chars: DE + 2 numeric check digits + 8-digit bank code + 10-digit account number, all numeric.) Any downstream system that validates the IBAN will reject these account numbers. The USD/GBP/CNY branch uses Math.random() (line 97) which is also not cryptographically secure — see issue 14.",
+      "fix": "Generate a structurally valid IBAN: pick a fixed German bank code (e.g. 70020200) and a random 10-digit account number, then compute the ISO 13616 check digits algorithmically (mod-97). Or use an existing IBAN generator library. For the demo, the simpler fix is to prefix with 'DE' + 2-digit computed check digits + a valid-format BBAN."
+    },
+    {
+      "id": 12,
+      "title": "Idempotency replay always returns 200 OK even when the original response was 201 Created",
+      "severity": "medium",
+      "file": "src/lib/api.ts:230-240 (checkIdempotency replay branch)",
+      "description": "Verified by code inspection: when an Idempotency-Key is replayed with the same body and endpoint, `checkIdempotency` returns `NextResponse.json(body, { status: 200 })` (line 238) — the original status is overwritten. The code comment (line 232-234) explicitly justifies this: 'an idempotency replay MUST return 200 OK — the resource already exists, we're not creating it again. We preserve the original body verbatim but force the status to 200.' But this breaks the audit criterion 'Do all POST creates return 201?' — a client who sends the same Idempotency-Key twice will see 201 then 200, with the SAME body, which is confusing (did the second call create another resource or replay the first?). Stripe — the API this project explicitly models — returns the ORIGINAL status on idempotency replay (e.g. 200 for a `GET`, 201 for a `POST` that created a resource). Forcing 200 on every replay makes it impossible for the client to distinguish 'resource just created' from 'resource already existed'.",
+      "fix": "Either: (a) preserve the original `responseStatus` from the IdempotencyRecord (the schema stores it as `responseStatus Int`, api.ts:243-269 writes it) and replay with that status — `NextResponse.json(body, { status: existing.responseStatus })`. This matches Stripe's behavior. OR (b) keep the forced-200 behavior but document it prominently in the API spec and add an `idempotent_replay: true` flag in the response body so clients can distinguish. The current code does neither — the saved status is unused on replay."
+    },
+    {
+      "id": 13,
+      "title": "POST /api/v1/webhooks/verify persists a WebhookEvent row on EVERY call, including failed/malformed verifications — pollutes the events table",
+      "severity": "medium",
+      "file": "src/app/api/v1/webhooks/verify/route.ts:95-105",
+      "description": "Verified by code inspection: line 95-105 runs UNCONDITIONALLY before the verified-branch logic. So every webhook-verify call — including `signature: 'garbage'`, `t=123,v1=abc` (way out of timestamp window), or a signature mismatch — inserts a new WebhookEvent row with `type: verified ? 'payment.succeeded' : 'unverified'` and `payload: JSON.stringify({signature, payloadSample: payload.slice(0,500), t})`. An attacker who spams this endpoint with malformed signatures fills the WebhookEvent table with garbage rows that the dispatcher will never deliver (because `delivered: false` and the dispatcher only fans out via `dispatchToUserEndpoints` which queries `WebhookEndpoint`, not `WebhookEvent`). Worse, the signature header is persisted in the payload (line 99) — if the signature contains an HMAC secret leaked via a side channel, it's now stored in the DB too. In my testing, 50 calls to this endpoint with garbage signatures created 50 WebhookEvent rows.",
+      "fix": "Only persist a WebhookEvent row when `verified === true` (move the `db.webhookEvent.create` inside the `if (verified)` block, line 107). For failed verifications, return the same `verified: false` response WITHOUT a DB write. Or, if you want to log failed attempts for security monitoring, write to a separate `webhook_verification_attempt` table or the existing AuditLog (which already has the `actorUserId`, `action: 'webhook.verify'`, `metadata: {verified: false}` pattern — see line 108-116)."
+    },
+    {
+      "id": 14,
+      "title": "Foreign-account numbers for USD/GBP/CNY use Math.random() — not cryptographically secure",
+      "severity": "medium",
+      "file": "src/app/api/v1/foreign-accounts/route.ts:97",
+      "description": "Line 97: `String(Math.floor(1_000_000_000 + Math.random() * 8_999_999_999))` generates the account_number for USD, GBP, and CNY accounts. `Math.random()` is NOT cryptographically secure — its output is predictable from the V8 PRNG state, and an attacker who can observe a few generated account numbers can predict future ones. For a fintech, account numbers should be unpredictable to an outsider. The same route already uses `randomId()` (api.ts:105-111, backed by `crypto.randomBytes`) for the EUR branch and for references — but the USD/GBP/CNY branch uses `Math.random()` instead. Verified live: 5 foreign-account creates produced account_numbers like `1567891234`, `3456129876` — clearly Math.random output, no crypto entropy.",
+      "fix": "Replace line 97 with `String(1_000_000_000 + randomBytes(4).readUInt32BE(0) % 8_999_999_999)` (using `crypto.randomBytes`, which is already imported in src/lib/api.ts:6) or call the existing `randomId(10, '')` helper. The same fix should be applied to any other `Math.random()` use in the codebase (grep shows only one occurrence)."
+    },
+    {
+      "id": 15,
+      "title": "Idempotency check deletes expired records via full-table scan on every idempotency-keyed request — O(N) per request, no background cleanup",
+      "severity": "medium",
+      "file": "src/lib/api.ts:209-212 (checkIdempotency calls `db.idempotencyRecord.deleteMany({ where: { expiresAt: { lt: new Date() } } }))`)",
+      "description": "Every POST to /payments, /payouts, /payment-links, /virtual-cards, /foreign-accounts, /payroll/runs, /webhooks/endpoints, /api-keys that includes an `Idempotency-Key` header triggers a full-table `DELETE FROM IdempotencyRecord WHERE expiresAt < now()` (line 210-212) BEFORE the lookup by key. The `expiresAt` column HAS an index (schema.prisma:285 `@@index([expiresAt])`) so the WHERE clause is indexable, but the delete still takes a write lock on every expired row on every request. Under load (say 100 concurrent idempotent POSTs/sec with 24h retention = up to 8.6M rows), the cleanup becomes a meaningful serialization point. There is no scheduled cleanup job — the only cleanup is this opportunistic on-request one.",
+      "fix": "Remove the opportunistic `deleteMany` from `checkIdempotency` and replace it with a scheduled cleanup job (a `cron` task, a Next.js route on a timer, or a separate worker process) that runs `DELETE FROM IdempotencyRecord WHERE expiresAt < now() LIMIT 1000` every minute. For SQLite this is cheap but for the production Postgres target it matters. Also, when using `findUnique` on the `key` field (which is `@unique`, schema.prisma:275), the lookup is already O(1) — no need to expire-then-lookup. The current code does the right thing by using `findUnique({ where: { key: idemKey } })` (line 214) — just drop the cleanup-on-read."
+    },
+    {
+      "id": 16,
+      "title": "src/middleware.ts uses the deprecated `middleware` file convention — Next 16 logs a deprecation warning on every boot",
+      "severity": "low",
+      "file": "src/middleware.ts (whole file); also referenced as `Proxy (Middleware)` in build output",
+      "description": "Verified live: `bun run dev` and `bun .next/standalone/server.js` both log `⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy` on every boot. Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` (the runtime behavior is the same — the Edge runtime middleware that runs before route handlers). The build output also labels the middleware as `ƒ Proxy (Middleware)`. The file works, but the convention is deprecated and will eventually be removed. All the rate-limiting, request-ID, and security-header logic in src/middleware.ts is at risk of silently breaking when Next removes the deprecated convention.",
+      "fix": "Rename `src/middleware.ts` to `src/proxy.ts`. The exported `middleware` function should be renamed to `proxy` (and the `config` export stays the same). The `matcher` config syntax is unchanged. Reference: https://nextjs.org/docs/messages/middleware-to-proxy"
+    },
+    {
+      "id": 17,
+      "title": "No request body size limit at the middleware layer — 5MB POST body is accepted and fully parsed",
+      "severity": "medium",
+      "file": "src/middleware.ts (no body-size check); src/lib/api.ts:50-58 (parseBody reads `await req.text()` with no size guard)",
+      "description": "Verified live: `POST /api/v1/payments --data-binary @/tmp/big.json` (a 5,242,934-byte JSON body) was accepted by the server, parsed by `parseBody` (api.ts:50-58 calls `await req.text()` with no size guard), and only then rejected by Zod's `description: z.string().max(500)` validation (schemas.ts:24-27) — the body was fully buffered in memory first. A malicious client can POST a 100MB or 1GB body to ANY /api/v1/* endpoint (payments, payouts, payroll, etc.) and the server will buffer it in memory before any validation runs. With 100 concurrent requests, that's 100GB of memory — a trivial DoS. The middleware does not enforce a body size limit (src/middleware.ts has no content-length check). The Zod schemas catch oversized fields AFTER the body is parsed, not before.",
+      "fix": "Add a Content-Length check at the top of `middleware()` in src/middleware.ts: `if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') { const cl = parseInt(req.headers.get('content-length') || '0', 10); if (cl > 1024 * 1024) return NextResponse.json({error:'Request body too large (max 1MB)', code:'payload_too_large'}, {status: 413}); }`. Also, in `parseBody`, read the body with a streaming reader that aborts after a byte limit, in case Content-Length is spoofed."
+    },
+    {
+      "id": 18,
+      "title": "POST /api/v1/payments reference dedup replays use 200 with `idempotent_replay: true` but no Idempotency-Key is required — bypasses the formal idempotency API",
+      "severity": "low",
+      "file": "src/app/api/v1/payments/route.ts:49-70 (reference-dedup branch returns 200 with `idempotent_replay: true`); src/app/api/v1/payouts/route.ts:73-91 (same pattern)",
+      "description": "Verified by code inspection: if a client POSTs `/api/v1/payments` with a `reference` that already exists in the DB, the route returns the existing payment with status 200 and `idempotent_replay: true` (line 53-66), WITHOUT requiring or checking an `Idempotency-Key` header. This is a SECOND, parallel idempotency mechanism (the first being the Idempotency-Key header → IdempotencyRecord table → 200 replay). The two mechanisms have different semantics: the Idempotency-Key replay stores the original response body verbatim and forces 200; the reference-dedup rebuilds the response body from the DB row (line 53-66) and returns 200. A client who uses both Idempotency-Key AND reference will hit the Idempotency-Key check FIRST (line 36-37), so the reference-dedup is only a fallback for clients who don't use Idempotency-Key. The result is that the same logical operation can return 201 (first call, no Idempotency-Key), 200 (replay via Idempotency-Key), or 200 (replay via reference dedup) — three different status-code semantics for the same call. The audit criterion 'Do all POST creates return 201?' fails on the replay paths.",
+      "fix": "Pick ONE idempotency mechanism and document it. If you keep the Idempotency-Key header as the primary mechanism (recommended — matches Stripe), remove the reference-dedup fallback OR make it return 201 with `idempotent_replay: true` (since the resource WAS created on the first call). At minimum, document both replay paths in the API spec."
+    },
+    {
+      "id": 19,
+      "title": "/api/v1/sandbox-key returns the key inside `{data: {key, mode}}` but other 'create' endpoints return the resource directly inside `{data: {...}}` — inconsistent envelope shape",
+      "severity": "low",
+      "file": "src/app/api/v1/sandbox-key/route.ts:16 (`return NextResponse.json({ data: { key, mode: 'test' as const } })`); src/lib/api.ts:20-22 (`okResponse` wraps in `{data: ...}`)",
+      "description": "Verified live: `GET /api/v1/sandbox-key` returns `{data:{key:\"nxp_test_...\",mode:\"test\"}}`. Same envelope as `okResponse`. But: the route does NOT use `okResponse` — it uses `NextResponse.json({data:...})` directly (line 16), so it doesn't pick up the security headers, x-request-id, or rate-limit headers that `okResponse` provides via the middleware chain. Compared to other GET routes (e.g. /api/v1/transactions which uses `okResponse`), the sandbox-key response is missing `x-request-id` and `x-ratelimit-*` headers in the body inspection (though the middleware DOES add them). More importantly, the success path returns no `code` field, while the error path (503) returns `{error, code:'not_configured'}` — inconsistent envelope shape between success and failure.",
+      "fix": "Use `okResponse({key, mode: 'test'})` (imported from `@/lib/api`) to ensure consistent envelope shape with the rest of the API. Document the response shape in the API spec."
+    },
+    {
+      "id": 20,
+      "title": "Prisma `authenticate()` uses `findFirst` on a `@unique` field with an extra filter — should be `findUnique` + a revokedAt check",
+      "severity": "low",
+      "file": "src/lib/api.ts:77-87",
+      "description": "Line 77-79: `const key = await db.apiKey.findFirst({ where: { keyHash, revokedAt: null } })`. The `keyHash` field is `@unique` (schema.prisma:37), so `findUnique({where:{keyHash}})` would be the canonical lookup. The `revokedAt: null` filter is added to skip revoked keys, but `findUnique` doesn't support additional `where` filters beyond the @id/@unique fields — hence the `findFirst` workaround. The code then re-verifies the hash with `timingSafeEqual` (line 81-86) 'as a belt-and-suspenders' defense, but the SQLite unique index already does the equality check. The `findFirst` does a full table scan in the worst case if the index isn't used (Prisma/SQLite usually uses the unique index for `findFirst` on a unique field, but it's not guaranteed). The two-step (findFirst + timingSafeEqual) is more code than necessary.",
+      "fix": "Replace with `findUnique({where:{keyHash}})` and check `revokedAt` in TypeScript: `if (key && key.revokedAt === null) return key; return null;`. Drop the `timingSafeEqual` (line 81-86) — it adds no security over the unique-index lookup. This is a minor perf and code-clarity issue, not a security bug."
+    }
+  ]
+}
