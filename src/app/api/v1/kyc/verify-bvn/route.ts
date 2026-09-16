@@ -8,8 +8,7 @@ import {
   parseBody,
   hashKey,
   getOrCreateDemoCustomer,
-  auditLog,
-} from "@/lib/api";
+  auditLog, methodNotAllowed } from "@/lib/api";
 
 /**
  * POST /api/v1/kyc/verify-bvn
@@ -223,3 +222,5 @@ export async function GET(req: NextRequest) {
     verified_at: customer.kycVerifiedAt?.toISOString() ?? null,
   });
 }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

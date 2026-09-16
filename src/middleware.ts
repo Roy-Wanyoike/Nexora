@@ -103,7 +103,6 @@ export function middleware(req: NextRequest) {
   res.headers.set("x-content-type-options", "nosniff");
   res.headers.set("x-frame-options", "DENY");
   res.headers.set("referrer-policy", "no-referrer");
-  res.headers.set("x-powered-by", "Nexa Pay");
 
   // Rate limit key: prefer API key, fall back to IP
   const mode = getApiKeyMode(req);

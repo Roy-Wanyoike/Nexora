@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ShieldCheck, Loader2, CheckCircle2, XCircle, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,9 +20,6 @@ const ID_TYPES = [
   { value: "voters_card", label: "Voter's Card" },
 ];
 
-// Demo API key — same key used by the Endpoint Explorer. See scripts/seed.ts.
-const DEMO_API_KEY = "";
-
 type KycStatus = "idle" | "loading" | "success" | "error";
 
 type VerifyResponse = {
@@ -38,6 +35,15 @@ export function KycForm() {
   const [status, setStatus] = useState<KycStatus>("idle");
   const [message, setMessage] = useState<string>("");
   const [result, setResult] = useState<VerifyResponse | null>(null);
+  const [apiKey, setApiKey] = useState<string>("");
+
+  // Fetch the sandbox API key on mount (no hardcoded key in client bundle)
+  useEffect(() => {
+    fetch("/api/v1/sandbox-key")
+      .then((r) => r.json())
+      .then((d) => setApiKey(d.data?.key || ""))
+      .catch(() => {});
+  }, []);
 
   const bvnValid = /^\d{0,11}$/.test(bvn);
   const canSubmit =
@@ -56,7 +62,7 @@ export function KycForm() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${DEMO_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
           bvn,

@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody, toMinorUnit, randomId,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
-} from "@/lib/api";
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { createPayoutSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
 /** GET /api/v1/payouts — list payouts scoped to the calling API key's userId. */
@@ -160,3 +159,5 @@ export async function POST(req: NextRequest) {
   }
   return errorResponse("Failed to create payout after 5 attempts", 500, "internal_error");
 }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

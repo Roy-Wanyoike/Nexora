@@ -1,0 +1,286 @@
+{
+  "audit_metadata": {
+    "auditor": "Staff Backend Engineer (sub-agent)",
+    "scope": "src/app/api/ + src/lib/ + src/middleware.ts + prisma/schema.prisma + docker-compose.yml + Dockerfile + .env",
+    "dev_server": "running on http://localhost:3000 (bun run dev, next 16.1.3)",
+    "date": "2026-09-16",
+    "test_keys": {
+      "test_key": "nxp_test_8h2k9nbq01def456abc789",
+      "master_key_header": "x-master-key: super-secret-master-key-123"
+    },
+    "curl_results": {
+      "POST /api/v1/payments": "201 (created, okResponse 201)",
+      "POST /api/v1/webhooks/verify": "200 (verified:false, reason:timestamp_out_of_range) — NEXORA_WEBHOOK_SECRET is set in .env",
+      "GET  /api/v1/api-keys (with master)": "200 (returns 4 keys, none leak raw key value)",
+      "GET  /api/v1/api-keys (without master)": "401 \"Missing x-master-key header.\"",
+      "GET  /api/v1/sandbox-key": "200 — LEAKS the real test key `nxp_test_8h2k9nbq01def456abc789` to anyone, unauthenticated",
+      "GET  /api/health": "200 {status:ok, db:up, latency_ms:1, version:0.2.1}",
+      "GET  /api/v1/nonexistent": "404 JSON catch-all {error, code:not_found, path, request_id}"
+    },
+    "build_and_typecheck": {
+      "bun run build": "exit 0 — succeeds (standalone Next.js build with all 21 API routes registered)",
+      "bunx tsc --noEmit": "exit 0 — no type errors"
+    },
+    "middleware_health_exemption": "/api/health is exempt from rate limiting (src/middleware.ts:90 `if (pathname === '/api/health') return res;`)",
+    "prisma_provider": "sqlite (prisma/schema.prisma line 9: `provider = \"sqlite\"`)",
+    "rate_limit_backend": "in-memory Map (per-process) — NOT Redis-backed despite env.example mentioning Upstash"
+  },
+
+  "summary": {
+    "verdict": "Not production-ready. Build and types pass, core flows return correct HTTP codes, and the 404 catch-all + /payments 405-Allow pattern show good REST hygiene. However: the database is SQLite, the public sandbox-key endpoint leaks a working test key to anyone unauthenticated, the master key in .env is a weak guessable string, 405 responses on most routes violate RFC 7231 by omitting `Allow`, the rate limiter is per-process AND grants elevated limits to fake keys based purely on Bearer prefix, the idempotency check is a TOCTOU race, audit logs are fire-and-forget, no background workers exist for scheduled payroll, and the KYC vendor is a stub that always returns true. None of these individually is a hard blocker for a localhost demo; collectively they are blockers for a fintech in production.",
+    "passes": [
+      "bun run build exit 0",
+      "bunx tsc --noEmit exit 0",
+      "All POST creates (payments, payouts, virtual-cards, foreign-accounts, payroll/runs, webhooks/endpoints, api-keys, payment-links) return 201",
+      "/api/health is exempt from rate limiting ✓",
+      "404 catch-all returns JSON, not HTML",
+      "GET /api/v1/api-keys with master key returns keyPrefix only (never the full key)",
+      "/payments has explicit 405 with `Allow: POST` and JSON body for all non-POST methods",
+      "HMAC-SHA256 webhook verification is constant-time and rejects out-of-range timestamps",
+      "Master key check uses constant-time SHA-256 compare and ALWAYS rejects when NEXORA_MASTER_KEY is unset (no dev bypass — better than the previous audit's finding)",
+      "Webhook endpoint URL must be https (zod refinement enforces it)",
+      "Idempotency-Key conflict (same key, different body) returns 409"
+    ],
+    "fails": [
+      "prisma/schema.prisma uses SQLite, not Postgres (docker-compose expects Postgres)",
+      "/api/v1/sandbox-key returns the real test key to anyone unauthenticated",
+      "Master key in .env is `super-secret-master-key-123` (weak, not 64-char hex)",
+      "Most POST-only/GET-only routes return 405 with no `Allow` header and empty body (only /payments is correct)",
+      "OPTIONS preflight lies about supported methods (returns all 7 even for POST-only routes)",
+      "Rate limiter is in-memory (per-process) — N replicas = N× the limit",
+      "Rate limiter grants `live` tier (1000/min) to FAKE `nxp_live_*` keys based on Bearer prefix alone",
+      "Master-key (admin) endpoints are rate-limited as anonymous (30/min)",
+      "No request body size limit — 5MB POST accepted and parsed (DoS vector)",
+      "Idempotency-Key check is TOCTOU — concurrent identical POSTs can double-charge",
+      "Foreign-account numbers use Math.random() (not crypto-secure) for USD/GBP/CNY",
+      "Audit logs are fire-and-forget — compliance records silently dropped on transient DB errors",
+      "No background workers — POST /v1/payroll/runs creates 'scheduled' rows that never execute",
+      "KYC vendor stub always returns { verified: true }",
+      "Demo customer shared across all API keys — multi-tenant data leak",
+      "/api/v1/kyc/verify-bvn POST returns 200, not 201 (inconsistent with other POST creates)",
+      "/api/v1/webhooks/verify returns 201 even when verified=false (final return only)",
+      "Missing CRUD: no GET list on /v1/payments, no PaymentLink persistence, no refunds, no DELETE on webhook-endpoints/[id]",
+      "docker-compose exposes Postgres 5432 and Redis 6379 on host network with weak default credentials (nexora:nexora)",
+      "requireMasterKey returns 401 for missing header but 403 for invalid header (inconsistent)",
+      "/api/v1/payments/callback has no signature verification — anyone with a payment reference can drive the state machine",
+      "console.error logging has no request_id correlation — middleware sets x-request-id but routes never include it"
+    ]
+  },
+
+  "issues": [
+    {
+      "id": 1,
+      "title": "Prisma schema is SQLite — production cannot use the docker-compose Postgres override",
+      "severity": "critical",
+      "file": "prisma/schema.prisma:8-11",
+      "description": "The datasource block hardcodes `provider = \"sqlite\"`. The Prisma client is generated against SQLite, so the generated engine does not speak Postgres wire protocol. docker-compose.yml:45 overrides DATABASE_URL to `postgresql://nexora:nexora@postgres:5432/nexora?schema=public`, but at runtime the Prisma client will try to open a SQLite connection against a Postgres URL and fail immediately. The Dockerfile (line 31) runs `bun run db:generate` at build time with the SQLite provider, baking the SQLite engine into the standalone bundle. The env.example comment at line 19-20 says 'SQLite for dev. For production use Postgres' but no environment-conditional provider is configured — Prisma does not support that, the file must be edited.",
+      "fix": "Switch `provider = \"postgres\"` (or `postgresql`) in prisma/schema.prisma, run `prisma migrate dev --create-only` to generate the first migration against a local Postgres, then `prisma migrate deploy` in the Dockerfile build stage. Keep the SQLite file under a separate `prisma/schema.dev.prisma` only if you need a local-only dev DB, and gate which schema Prisma loads via `prisma --schema`. Or simply require Postgres in all environments and remove SQLite support entirely."
+    },
+    {
+      "id": 2,
+      "title": "GET /api/v1/sandbox-key leaks a real, working test API key to anyone unauthenticated",
+      "severity": "critical",
+      "file": "src/app/api/v1/sandbox-key/route.ts; .env (NEXORA_SANDBOX_KEY)",
+      "description": "Verified live: `curl http://localhost:3000/api/v1/sandbox-key` → `{\"data\":{\"key\":\"nxp_test_8h2k9nbq01def456abc789\",\"mode\":\"test\"}}` with no auth required. That key, `nxp_test_8h2k9nbq01def456abc789`, is the SAME key seeded into the DB by scripts/seed.ts:16 and used as the bearer token throughout the test suite. Anyone on the internet who can reach this endpoint can create payments, payouts, virtual cards, foreign accounts, and payroll runs on the demo DB. The route comment claims 'no hardcoded fallback' — true — but the .env value is set to the same guessable string the previous audit flagged. Moving the secret from code to .env didn't change the attack surface: the endpoint still hands out a working key.",
+      "fix": "Either: (a) remove the /v1/sandbox-key endpoint entirely and have the dashboard mint per-session ephemeral test keys via a separate /v1/sandbox-key/issue endpoint with a 1h TTL, OR (b) require a master-key on /v1/sandbox-key and rotate the key value to a per-environment random. At minimum: add an IP allowlist or a referrer check so the public explorer can fetch it but external IPs cannot."
+    },
+    {
+      "id": 3,
+      "title": "Master key in .env is a weak, guessable, non-spec-compliant string",
+      "severity": "critical",
+      "file": ".env (NEXORA_MASTER_KEY=super-secret-master-key-123)",
+      "description": "The .env file (which is in .gitignore per env.example:5, but is checked into this sandbox) contains `NEXORA_MASTER_KEY=super-secret-master-key-123`. env.example:29 explicitly says 'Generate with: openssl rand -hex 32'. The current value is 26 characters of plain ASCII, not 64 hex chars, and includes a dictionary word ('secret'). Anyone who guesses this string or finds it in a leaked .env can POST to /v1/api-keys and mint live API keys (verified: `curl -X POST -H 'x-master-key: super-secret-master-key-123' ... -d '{\"label\":\"x\",\"mode\":\"live\"}'` returned 201 with a fresh `nxp_live_*` key). The same `super-secret-master-key-123` value was provided to me in the audit prompt, meaning it is effectively public.",
+      "fix": "Rotate immediately: `openssl rand -hex 32` and update .env (and .env.production, vault, etc.). Reject any master key shorter than 32 bytes at startup. Add a startup assertion in db.ts or a new src/lib/config.ts that throws if NEXORA_MASTER_KEY is missing or weak in production. Treat the leaked value as compromised — revoke all keys minted under it."
+    },
+    {
+      "id": 4,
+      "title": "405 Method Not Allowed responses on most routes omit the `Allow` header AND the JSON body (RFC 7231 violation)",
+      "severity": "high",
+      "file": "src/app/api/v1/payment-links/route.ts; src/app/api/v1/webhooks/verify/route.ts; src/app/api/v1/webhooks/endpoints/route.ts; src/app/api/v1/kyc/verify-bvn/route.ts; src/app/api/v1/payments/callback/route.ts; src/app/api/v1/api-keys/route.ts; src/app/api/v1/api-keys/[id]/route.ts; src/app/api/v1/sandbox-key/route.ts; src/app/api/v1/foreign-accounts/route.ts; src/app/api/v1/payouts/route.ts; src/app/api/v1/payroll/runs/route.ts; src/app/api/v1/virtual-cards/route.ts",
+      "description": "Verified live with a 30-call matrix (5 methods × 6 routes). Only src/app/api/v1/payments/route.ts:15-18 exports explicit GET/PUT/PATCH/DELETE handlers that call `methodNotAllowed(req, ['POST'])` and emit `Allow: POST` + a JSON body. Every other POST-only or GET-only route falls through to Next.js's default 405, which: (a) sends NO `Allow` header — violating RFC 7231 §6.5.5 ('The server MUST generate an Allow header field in a 405 response'), and (b) sends an EMPTY body — clients get no JSON envelope, unlike every other error response in the API. Examples confirmed live: `curl -i -X GET /v1/payment-links` → 405, no Allow, 0 bytes body; `curl -i -X DELETE /v1/webhooks/endpoints` → 405, no Allow, 0 bytes; `curl -i -X POST /v1/payments/callback` → 405, no Allow, 0 bytes; `curl -i -X PUT /v1/kyc/verify-bvn` → 405, no Allow, 0 bytes; `curl -i -X GET /v1/api-keys/[id]` → 405, no Allow, 0 bytes.",
+      "fix": "Add the same four-method methodNotAllowed export pattern (lines 15-18 of /v1/payments/route.ts) to every route handler. Better: create a shared `withAllowedMethods(handler, [...methods])` wrapper in src/lib/api.ts that returns the 405 for any method not in the list. The fix is mechanical — ~30 lines per route — but should be applied to every route file. The `methodNotAllowed` helper already exists at src/lib/api.ts:30-48 and does the right thing."
+    },
+    {
+      "id": 5,
+      "title": "OPTIONS preflight responses lie about which methods a route actually supports",
+      "severity": "high",
+      "file": "Next.js default OPTIONS handler (all /api/v1/* routes)",
+      "description": "Verified live: `curl -i -X OPTIONS /v1/payments` returns 204 with `allow: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT` even though /v1/payments only actually allows POST (every other method returns 405 with `allow: POST`). The OPTIONS handler appears to enumerate all methods Next.js can dispatch, not the methods the route exports. An API client using the preflight to decide which methods to call will be misled into thinking it can GET /v1/payments (which then 405s). Same lie on every other route.",
+      "fix": "Add an explicit OPTIONS handler to each route file that returns 204 with an accurate `Allow` header listing only the methods the route exports (e.g. `Allow: POST` for /v1/payments, `Allow: GET, POST` for /v1/api-keys). Or centralize: in src/middleware.ts, intercept OPTIONS requests, look up the route's exported methods (or maintain a small registry), and return the correct Allow header. Bonus: add `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` for proper CORS preflight support, which is currently absent."
+    },
+    {
+      "id": 6,
+      "title": "Rate limiter is in-memory (per-process) — N replicas = N× the configured limit",
+      "severity": "high",
+      "file": "src/middleware.ts:28 (`const buckets = new Map<string, Bucket>()`)",
+      "description": "The rate limiter uses a module-level Map keyed by `type:id`. With N app replicas (typical in k8s/ECS/Render), each replica gets its own Map, so an attacker can effectively make N×RATE_LIMIT_TEST requests per minute by load-balancing across replicas. The map also resets on every process restart (no persistence). env.example:99-104 mentions `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` but the middleware does not read them. The comment at middleware.ts:7-8 acknowledges this and says 'back this with Upstash Redis' — but the implementation was never done.",
+      "fix": "Use `@upstash/ratelimit` with a Redis or Upstash Rest backend. The shape is: `const ratelimit = new Ratelimit({ redis: Redis.fromEnv(), limiter: Ratelimit.slidingWindow(100, '1 m'), prefix: 'nexora' }); const { success, reset } = await ratelimit.limit(rlKey);` Keep the in-memory fallback for dev (when UPSTASH_REDIS_REST_URL is unset). Document the scaling story in ARCHITECTURE.md."
+    },
+    {
+      "id": 7,
+      "title": "Rate limiter grants elevated 'live' tier (1000/min) to FAKE live keys based on Bearer prefix alone",
+      "severity": "high",
+      "file": "src/middleware.ts:65-69 (getApiKeyMode); :112 (max assignment)",
+      "description": "`getApiKeyMode(req)` regex-matches `^Bearer\\s+nxp_(test|live)_[a-z0-9]+$` and returns the captured mode WITHOUT consulting the DB. The rate limiter then sets `max = mode === 'live' ? 1000 : mode === 'test' ? 100 : 30`. Verified live: `curl -X POST /v1/payments -H 'Authorization: Bearer nxp_live_aaaaaaaaaaaaaaaaaaaaaaaa' ...` returned `x-ratelimit-limit: 1000, x-ratelimit-remaining: 999` before authentication rejected it with 401. An attacker mints 10× the rate-limit headroom by simply prefixing their bearer with `nxp_live_` — no DB lookup, no API key creation needed. They can then crowd out legitimate live keys by rotating IPs (the rlKey is `key:${mode}:${ip}`, so each IP gets its own 1000/min bucket).",
+      "fix": "Move the rate-limit check to AFTER authentication. Or: do a cheap Redis Bloom filter / Set lookup in middleware to confirm the key hash exists before granting the elevated tier. For unknown keys, fall back to a strict per-IP anonymous limit (e.g. 30/min) regardless of Bearer prefix. Use `key:${keyHash}` (not `key:${mode}:${ip}`) as the rlKey so the limit is per-key, not per-IP-per-mode — that way an attacker must rotate keys, not just IPs."
+    },
+    {
+      "id": 8,
+      "title": "Master-key (admin) endpoints are rate-limited as 'anonymous' (30/min) — admin throttled below normal users",
+      "severity": "high",
+      "file": "src/middleware.ts:65-69, :110-112; src/app/api/v1/api-keys/route.ts",
+      "description": "The middleware's `getApiKeyMode` only recognises `Authorization: Bearer nxp_(test|live)_...`. Master-key endpoints use the `x-master-key` header, NOT Bearer. So when an admin calls `GET /v1/api-keys` with `x-master-key`, the middleware treats the request as anonymous and applies the 30 req/min cap. Verified live: 26 requests with master key → 429 on the 27th. A legitimate admin performing a bulk list/rotate operation hits the cap immediately, while a regular merchant with a valid Bearer key gets 100/min. The privilege ordering is inverted: more privileged = more throttled.",
+      "fix": "Recognise `x-master-key` in getApiKeyMode (or a sibling function) and apply a separate tier — e.g. `RATE_LIMIT_MASTER = 60` req/min — for admin operations. Or do the master-key check in middleware once and set the tier accordingly. At minimum, document the intended admin rate limit in env.example."
+    },
+    {
+      "id": 9,
+      "title": "No request body size limit — 5 MB POST accepted and parsed (memory DoS)",
+      "severity": "high",
+      "file": "src/lib/api.ts:50-58 (parseBody)",
+      "description": "parseBody does `const text = await req.text()` then `JSON.parse(text)` with no size check. Verified live: a 5,242,934-byte JSON body POSTed to /v1/payments with a valid key was fully read into a JS string, parsed, and accepted (returned 201; the extra 5 MB field was ignored by zod). A 1 GB body would be read into memory before any validation runs. Next.js route handlers using `req.text()` bypass the default 1 MB body parser limit. An attacker with a valid (or fake-able, see issue 7) key can OOM the process with a single request — and with N replicas, can OOM N processes.",
+      "fix": "Check `req.headers.get('content-length')` at the top of parseBody and reject >256 KB with 413 Payload Too Large before reading the body. For streaming bodies, use `req.body.getReader()` and abort once the cumulative size exceeds the limit. Also tighten zod schemas: most string fields already have `.max(N)`, but unknown extra fields (like the 5 MB one in my test) are silently dropped by `z.object({...}).strip()` — switch to `.strict()` to reject unknown fields outright."
+    },
+    {
+      "id": 10,
+      "title": "Idempotency-Key check is a Time-Of-Check-Time-Of-Use race — duplicate charges possible",
+      "severity": "high",
+      "file": "src/lib/api.ts:201-241 (checkIdempotency), :244-269 (saveIdempotencyRecord)",
+      "description": "checkIdempotency reads the IdempotencyRecord row, returns `{replay:false, response:null}` if not found, and the route handler then does all the work (create Payment, call TheTeller, dispatch webhook). saveIdempotencyRecord inserts the row at the very end. Two concurrent requests with the same Idempotency-Key both pass the read (both see 'not found'), both create the Payment row, both call the gateway, and only the second saveIdempotencyRecord's INSERT hits P2002 — which is silently swallowed by `catch {}` (line 266-268). By then the double-charge has already happened. The `reference` unique constraint catches the duplicate Payment, but only if a reference was supplied; for auto-generated references, both inserts succeed and you get two distinct Payment rows for one Idempotency-Key.",
+      "fix": "Insert the IdempotencyRecord FIRST with `INSERT … ON CONFLICT (key) DO NOTHING` (Prisma: `db.idempotencyRecord.create({...}).catch(e => { if P2002 fetch existing; else throw })`). Only proceed with the work if the insert returned a row. Wrap the insert + business work in a Postgres transaction with `pg_advisory_xact_lock(hash(key))` so concurrent same-key requests serialize. This requires the Postgres switch (issue 1) — SQLite's serialised writes happen to mask this in dev but won't in prod."
+    },
+    {
+      "id": 11,
+      "title": "Foreign-account numbers use Math.random() — predictable and collision-prone",
+      "severity": "high",
+      "file": "src/app/api/v1/foreign-accounts/route.ts:96-98",
+      "description": "Line 96-98: `const accountNumber = cur === 'EUR' ? 'DE89'+randomId(16,'') : String(Math.floor(1_000_000_000 + Math.random() * 8_999_999_999));`. The EUR branch correctly uses `randomId` (which uses `crypto.randomBytes` from src/lib/api.ts:107), but USD/GBP/CNY use Math.random() — not cryptographically secure, with a ~2^52 period. There's also no uniqueness check before insert (no `@unique` constraint on ForeignAccount.accountNumber in schema.prisma:140), so two concurrent requests can generate the same number, and a typed digit on a wire transfer lands in the wrong account. Predictable account numbers are an AML/fraud risk: an attacker who knows the algorithm can enumerate valid account numbers for phishing or pre-account-takeover reconnaissance.",
+      "fix": "Use `randomId(10, '')` (or `crypto.randomBytes(5).toString('hex').slice(0,10)`) for ALL currencies. For EUR, generate a real IBAN with a mod-97 checksum. For USD, generate an ABA routing number with its built-in checksum. Add a `@unique` constraint on `(currency, accountNumber)` in schema.prisma and retry on P2002 with a fresh number. Persist the number through a Temporal workflow so a partner-bank API can issue the real number asynchronously and the local number is just a placeholder."
+    },
+    {
+      "id": 12,
+      "title": "Audit logs are fire-and-forget — compliance records silently dropped on transient DB errors",
+      "severity": "high",
+      "file": "src/lib/api.ts:282-311 (auditLog)",
+      "description": "auditLog calls `db.auditLog.create({...}).catch(e => console.error('Audit log write failed:', e?.message || e))`. The function returns void; callers do not await it (`auditLog({...})` with no `await`). For a fintech, audit logs are required by CBN (Nigeria), SEC, FCA (UK), and CPMI (cross-border) regulators and must be durable. If the DB has a transient error (connection blip, deadlock, disk full), the audit entry is gone — only a `console.error` line in unstructured stdout, with no request_id, no JSON envelope, no trace correlation. The middleware sets `x-request-id` but the route handlers don't read it; the auditLog metadata does not include the request_id either. The console.error doesn't include the actorUserId, apiKeyId, action, or resourceId that were passed in — only the error message.",
+      "fix": "Write audit logs SYNCHRONOUSLY inside the same Prisma `$transaction` as the state change so they commit atomically (or roll back together). For high-volume endpoints, write to a durable queue (Kafka/Redis Stream) with at-least-once delivery and a dead-letter queue. Always include request_id (read `req.headers.get('x-request-id')`), apiKeyId, userId, and a structured before/after diff in metadata. Use JSONB for metadata in Postgres. Initialize Sentry at app startup (`Sentry.init`) and capture unhandled audit failures — env.example:107 has SENTRY_DSN but no code uses it."
+    },
+    {
+      "id": 13,
+      "title": "No background workers — POST /v1/payroll/runs creates 'scheduled' rows that never execute",
+      "severity": "high",
+      "file": "src/app/api/v1/payroll/runs/route.ts; project-wide (no worker process)",
+      "description": "POST /v1/payroll/runs creates a PayrollRun row with status='scheduled' and a `scheduledFor` timestamp (line 86-90) — and that's it. There is no worker, no cron, no queue consumer, no Temporal workflow that ever picks up scheduled runs and marks them paid. Verified live: POST returned 201 with `status:'scheduled', scheduled_for:'2026-09-16T09:25:35'`, but no follow-up ever runs. Same for any other scheduled job (expiring payment links, retrying failed payouts, GC'ing expired idempotency records beyond the opportunistic read-time delete in api.ts:210). The 'payroll' feature is non-functional in production — it's a write-only TODO that creates rows nobody processes.",
+      "fix": "Add a worker process. Cheapest: a BullMQ repeatable job that polls `PayrollRun where scheduledFor < now AND status = 'scheduled'` every 60s and enqueues a `ProcessPayrollRun` job. Correct: a Temporal `PayrollRunWorkflow` started from POST /v1/payroll/runs with `workflow.ExecuteTimer(scheduledFor)` then fan-out to per-employee `PayoutWorkflow` child workflows. Either way, this requires a separate `worker` process in the deploy (add to docker-compose, Procfile, or external cron + worker)."
+    },
+    {
+      "id": 14,
+      "title": "KYC vendor integration is a stub that ALWAYS returns { verified: true }",
+      "severity": "high",
+      "file": "src/app/api/v1/kyc/verify-bvn/route.ts:49-56 (verifyBvnViaVendor)",
+      "description": "verifyBvnViaVendor is a one-line stub: `return { verified: true }`. The route only calls it when `NODE_ENV === 'production' && KYC_LIVE === '1'` (line 110). In dev (the current state) every BVN verifies immediately to `kycStatus='verified', kycTier=1` — fine for the demo. BUT: the stub is also what runs in production if an operator sets `KYC_LIVE=1` without implementing the real vendor call. There is no startup assertion that fails loud if `KYC_LIVE=1` but no `YOUVERIFY_API_KEY` or `SMILE_IDENTITY_*` env vars are set. Sanctions/PEP screening (lines 146-147) is defaulted to 'unknown' and never actually run. A fintech that ships with this stub is non-compliant with CBN BVN-verification rules.",
+      "fix": "Implement the real vendor call (Youverify or Smile Identity). Add a startup assertion in src/lib/config.ts: `if (process.env.KYC_LIVE === '1') require at least one of [YOUVERIFY_API_KEY, SMILE_IDENTITY_PARTNER_ID+SMILE_IDENTITY_API_KEY]; throw otherwise`. On verification, run sanctions (OFAC/UN/EU/HMT/NFIU) and PEP screening via the same vendor or a dedicated screening API (e.g. ComplyAdvantage). Store the vendor verification reference in AuditLog.metadata. Set kycTier based on verification depth (1=BVN only, 2=BVN+ID, 3=BVN+ID+address proof)."
+    },
+    {
+      "id": 15,
+      "title": "Demo customer is shared across all API keys — multi-tenant data leak",
+      "severity": "high",
+      "file": "src/lib/api.ts:172-179 (getOrCreateDemoCustomer); src/app/api/v1/payments/route.ts:40; src/app/api/v1/virtual-cards/route.ts:75; src/app/api/v1/foreign-accounts/route.ts:100; src/app/api/v1/kyc/verify-bvn/route.ts:89",
+      "description": "`getOrCreateDemoCustomer()` always returns the same Customer (`john.doe@nexapay.africa`) — verified in src/lib/api.ts:174. POST /v1/payments, /v1/virtual-cards, /v1/foreign-accounts, and /v1/kyc/verify-bvn all resolve the customer through this helper unless a `customerId` is explicitly passed. Even when a `customerId` IS passed, the API key's `userId` (not the customer's) is the scoping primitive (see payments/route.ts:88 `userId: key.userId`). Two merchants with different live API keys both create payments on the same demo Customer, see the same KYC status, and would see each other's customer-level data on any customer-scoped query. In production this leaks PII across tenants.",
+      "fix": "Resolve the Customer from the API key's `userId` via `Customer.userId` (already indexed in schema.prisma:78). Drop `getOrCreateDemoCustomer` entirely. Require a `customerId` on POST /v1/payments and reject if missing or if the customer doesn't belong to `key.userId`. For the dashboard demo, create one demo Customer per seeded API key in scripts/seed.ts."
+    },
+    {
+      "id": 16,
+      "title": "/api/v1/kyc/verify-bvn POST returns 200, not 201 — inconsistent with every other POST create",
+      "severity": "medium",
+      "file": "src/app/api/v1/kyc/verify-bvn/route.ts:178-183",
+      "description": "Verified live: `curl -X POST /v1/kyc/verify-bvn -d '{\"bvn\":\"12345678901\"}'` returned `200` with `{data:{customer_id, kyc_status:'verified', kyc_tier:1, verified_at}}`. Every other POST 'create' in the API returns 201: /v1/payments (201), /v1/payouts (201), /v1/virtual-cards (201), /v1/foreign-accounts (201), /v1/payroll/runs (201), /v1/webhooks/endpoints (201), /v1/api-keys (201), /v1/payment-links (201). verify-bvn persists new KYC state (bvnHash, kycStatus, kycTier, kycVerifiedAt) AND updates the customer row — semantically a creation of a KYC verification record. Using 200 makes it look idempotent/no-op, conflicting with the contract of the other endpoints.",
+      "fix": "Return 201 on the success path (line 178: `return okResponse({...}, 201)`). Update the API docs to clarify that POST /v1/kyc/verify-bvn creates a verification record (idempotent per-bvn — re-verifying the same BVN returns the existing record). Or, if 200 is intentional (verification is a query, not a create), add a comment explaining why and document the inconsistency in docs/."
+    },
+    {
+      "id": 17,
+      "title": "/api/v1/webhooks/verify returns 201 even when verified=false — and 200 in early-return branches",
+      "severity": "medium",
+      "file": "src/app/api/v1/webhooks/verify/route.ts:46-53 (malformed_signature → 200), :56-63 (bad_timestamp → 200), :66-74 (timestamp_out_of_range → 200), :119-124 (final → 201 regardless of verified)",
+      "description": "The route has FOUR return paths for the verified=false case, three returning 200 and one returning 201. Verified live: `POST /v1/webhooks/verify` with `t=123,v1=abc` (out-of-range timestamp) returned `200 {data:{verified:false, reason:'timestamp_out_of_range', event_type:'unverified'}}`. With a valid signature (verified=true) it returns `201`. The final return at line 119-124 also returns 201 when verified=false (because the WebhookEvent row was still created). Clients cannot reliably tell which case they're in without inspecting the body — and they can't write a single rule like 'treat 201 as success' because 201 is also returned on verified=false at the bottom of the function.",
+      "fix": "Standardize: 200 for verified:false (early returns AND the bottom-of-function verified:false case), 201 for verified:true only (a verified event = a new WebhookEvent row created). Or, alternatively, treat the WebhookEvent row creation as the side effect and always return 200, never 201 — since this endpoint is semantically a 'verify' action (idempotent query), not a 'create'. Pick one and document it."
+    },
+    {
+      "id": 18,
+      "title": "Missing CRUD endpoints — the surface is asymmetric across resources",
+      "severity": "medium",
+      "file": "src/app/api/v1/payments/route.ts (no GET list); src/app/api/v1/payment-links/route.ts (persists nothing); src/app/api/v1/webhooks/endpoints/[id]/route.ts (file doesn't exist); src/app/api/v1/payroll/runs/[id]/route.ts (no PATCH/DELETE/execute); src/app/api/v1/payments/[id]/refund/route.ts (file doesn't exist)",
+      "description": "Five concrete gaps: (a) No `GET /v1/payments` list — verified live (returns 405, no Allow header). You can create payments and fetch one by id, but not list them. Inconsistent with /v1/payouts, /v1/transactions, /v1/virtual-cards, /v1/foreign-accounts, /v1/payroll/runs — all of which implement GET-list with the same pagination shape. (b) `POST /v1/payment-links` generates a `plink_<id>` and `nxp-<slug>` on the fly, returns a `pay.nexapay.africa/l/<slug>` URL, and persists NOTHING — the code comment at line 30 says 'no PaymentLink model in schema'. No GET list, no GET /[id], no PATCH, no DELETE, and the slug is never checked for uniqueness. (c) `/v1/webhooks/endpoints/[id]/route.ts` doesn't exist — once a webhook endpoint is registered, there is no way to fetch, edit (toggle enabled, change event_types), or delete it. (d) `/v1/payroll/runs/[id]` has GET only — no PATCH to cancel, no POST /execute, no DELETE. Combined with the missing worker (issue 13), a scheduled payroll run sits forever with no way to cancel. (e) No refunds endpoint — no `POST /v1/payments/[id]/refunds`, no `refunded`/`partially_refunded` Payment status, no Refund model. The Payment status enum is `pending | succeeded | failed` only. A fintech cannot ship without refunds.",
+      "fix": "Add GET /v1/payments (mirror the /v1/payouts GET handler). Add a PaymentLink model to schema.prisma and persist on POST; add GET list, GET /[id], PATCH (status), DELETE. Add /v1/webhooks/endpoints/[id]/route.ts with GET, PATCH, DELETE — each writes an audit log entry. Add PATCH (status:cancelled) and POST /execute to /v1/payroll/runs/[id]. Add `refunded`/`partially_refunded` to Payment.status, add a Refund model, add POST /v1/payments/[id]/refunds, and extend the TheTeller gateway module with `initiateRefund()`."
+    },
+    {
+      "id": 19,
+      "title": "docker-compose.yml exposes Postgres 5432 and Redis 6379 on the host network with weak default credentials",
+      "severity": "medium",
+      "file": "docker-compose.yml:16-17 (Postgres), :29-30 (Redis), :6-8 (POSTGRES_USER/PASSWORD/DB all 'nexora')",
+      "description": "docker-compose.yml:16-17 publishes `5432:5432` for the Postgres service and :29-30 publishes `6379:6379` for Redis. Lines 6-8 set POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB all to the string `nexora` — username equal to password, both equal to the DB name. Anyone on the host network (or the public internet if the host has a public IP) can `psql -h <host> -p 5432 -U nexora -d nexora` with password `nexora` and read/modify every payment, payout, customer, BVN hash, and audit log in the system. Same for Redis — no auth configured (`--appendonly yes` is the only arg). The `app` service is the only thing that needs to reach either — they should be on an internal Docker network only.",
+      "fix": "Remove the `ports` block from both Postgres and Redis services. Put them on an explicit internal network (e.g. `networks: [internal]`) and only expose them to the `app` service via `depends_on`. Use a strong generated POSTGRES_PASSWORD — load it from .env, not inline. Configure Redis with `requirepass` and a strong password from .env. For dev convenience, gate the port publishing behind a compose profile (`profiles: ['dev']`) so `docker compose --profile dev up` exposes them locally but `docker compose up` (production) does not."
+    },
+    {
+      "id": 20,
+      "title": "requireMasterKey returns 401 for missing header but 403 for invalid header — inconsistent",
+      "severity": "low",
+      "file": "src/lib/api.ts:137-170 (requireMasterKey)",
+      "description": "requireMasterKey returns 503 when NEXORA_MASTER_KEY is unset (good — fail closed), 401 when the `x-master-key` header is missing (line 153), and 403 when the header is present but wrong (line 168). Verified live: missing header → `401 {error:'Missing x-master-key header.'}`, wrong value → `403 {error:'Invalid master key.'}`. The 401/403 split is debatable — RFC 7235 says 401 means 'unauthenticated' (no valid credentials) and 403 means 'authenticated but forbidden'. A missing master key is unauthenticated → 401 ✓. A wrong master key is ALSO unauthenticated (we don't know who they are) but the code returns 403 — which suggests we authenticated them but they can't do this. Stripe, AWS, and most APIs return 401 for both cases. The inconsistency means clients can't write a single 'on 401 redirect to login' handler.",
+      "fix": "Pick one: return 401 for both missing AND invalid master key (the 'unauthenticated' interpretation), OR return 403 for both (the 'forbidden' interpretation). Recommend 401 for both — it matches Stripe, AWS, GitHub. Update tests to match."
+    },
+    {
+      "id": 21,
+      "title": "/api/v1/payments/callback has no signature verification — anyone with a payment reference can drive the state machine",
+      "severity": "high",
+      "file": "src/app/api/v1/payments/callback/route.ts",
+      "description": "The callback route accepts `transaction_id`, `reference`, or `id` query params (line 23-27), looks up the payment, calls `verifyTransaction(verifyTxnId)` on TheTeller, and updates the payment status based on the gateway response. There is NO signature verification on the inbound redirect. TheTeller (and Paystack, Flutterwave) support HMAC-signed callbacks — TheTeller's docs describe a `X-TheTeller-Signature` header. Anyone who learns a payment reference (which appears in checkout URLs, customer-facing receipts, and is logged) can drive the payment state machine by calling /callback themselves, causing the system to call verifyTransaction (which costs a gateway round-trip) and potentially flipping the status if they can spoof the gateway response. The dev-fallback 'treat non-pending verification as succeeded' was removed (good), but the lack of signature verification on the redirect itself remains.",
+      "fix": "Verify TheTeller's signature on the redirect (they support HMAC-signed callbacks; see TheTeller docs). Reject with 401 if the signature is missing or invalid. Add the same for any other gateway's callback. Always require signature verification in prod — gate any dev fallback behind an explicit `THETELLER_ALLOW_UNVERIFIED_CALLBACKS=1` env var, never behind `NODE_ENV !== 'production'` (which would auto-succeed in staging)."
+    },
+    {
+      "id": 22,
+      "title": "console.error logging has no request_id correlation — middleware sets it but routes never read it",
+      "severity": "low",
+      "file": "src/lib/api.ts:196-197 (Payment creation failed), src/app/api/v1/payments/route.ts:196, src/app/api/v1/payouts/route.ts:157, all routes",
+      "description": "The middleware generates `requestId = uuid()` (middleware.ts:98) and sets `res.headers.set('x-request-id', requestId)` (line 100). But no route handler reads `req.headers.get('x-request-id')` and includes it in `console.error` output. Verified by reading all route files — every `console.error('Payment creation failed:', e?.code || e?.message)` call (payments/route.ts:196, payouts/route.ts:157, payroll/route.ts none, etc.) emits only the error code/message, no request_id, no actor, no route. In production with 100s of concurrent requests, an operator seeing `Payment creation failed: P2002` in stdout has no way to correlate it with the specific request that triggered it. The audit log also doesn't include request_id (issue 12).",
+      "fix": "Use pino (or next-logger) with a per-request child logger bound to request_id, apiKeyId, userId, and route. Log JSON to stdout. Pass the logger through AsyncLocalStorage so route handlers don't have to thread it manually. Include request_id in every audit log entry. Initialize Sentry at app startup and capture unhandled exceptions with the request_id as a tag."
+    },
+    {
+      "id": 23,
+      "title": "Idempotency record expiration is opportunistic and silent — expired records can still replay",
+      "severity": "low",
+      "file": "src/lib/api.ts:210-216 (checkIdempotency)",
+      "description": "checkIdempotency deletes expired records with `db.idempotencyRecord.deleteMany({where:{expiresAt:{lt:new Date()}}}).catch(()=>{})` on every read — but the `.catch(()=>{})` swallows DB errors silently. Worse, the subsequent `findUnique({where:{key:idemKey}})` (line 214-216) does NOT filter by `expiresAt`. So if the deleteMany fails (transient DB error), or if a record's expiresAt is in the past but the delete hasn't run yet (e.g. a record was created at T, expires at T+24h, and the next read happens at T+25h before the deleteMany commits), the findUnique will still return the expired record and replay the cached response. The contract should be: an expired record is treated as not-found, period.",
+      "fix": "Add `expiresAt: { gt: new Date() }` to the findUnique where clause (it would need to become a findFirst since `key` is the only @unique and the additional filter requires a compound query — or change the schema to make `(key, expiresAt)` a composite unique). Remove the `.catch(()=>{})` on the deleteMany — let it throw so we know about DB issues. Run a scheduled job (BullMQ repeatable or Temporal workflow) to delete expired records every hour instead of doing it inline on every read."
+    },
+    {
+      "id": 24,
+      "title": "Webhook dispatcher uses in-process setTimeout for backoff — dies with the process",
+      "severity": "medium",
+      "file": "src/lib/webhooks/dispatcher.ts:69-71 (delay), :137-174 (deliverWithBackoff)",
+      "description": "deliverWithBackoff loops up to 5 attempts with backoff `[60, 300, 1800, 7200, 21600]` seconds (1m, 5m, 30m, 2h, 6h) — but uses `await delay(BACKOFF_SECONDS[attempt-1] * 1000)` (line 171), which is just `setTimeout`. If the process restarts (deploy, crash, autoscaler) mid-backoff, the in-flight delivery is lost — the WebhookEvent row stays `delivered: false, attempts: <whatever>, nextAttemptAt: <whenever>` forever. There is no worker that picks up undelivered events with a past nextAttemptAt. The code comment at line 169-170 acknowledges: 'in production this would be a delayed queue, not an in-process sleep'. In a serverless context this is even worse — the function invocation ends, the event is lost. The `dispatchWebhook` call at line 130 is also fire-and-forget (`deliverWithBackoff(...).catch(...)`) — the route handler returns immediately and the dispatcher runs in the background of the same process.",
+      "fix": "Move delivery to a durable queue. Cheapest: BullMQ with a repeatable scheduler that polls `WebhookEvent where delivered=false AND nextAttemptAt < now` every 30s and re-attempts. Correct: a Temporal `WebhookDeliveryWorkflow` started from the route handler — `workflowClient.ExecuteWorkflow(DeliverWebhookWorkflow, eventId, endpoint)` returns immediately, and the workflow handles the backoff via `workflow.Sleep()` which is replay-safe. The workflow survives process restarts because Temporal persists workflow state."
+    },
+    {
+      "id": 25,
+      "title": "TheTeller gateway fallback in non-prod silently synthesizes a checkout URL — masks gateway outages in staging",
+      "severity": "low",
+      "file": "src/app/api/v1/payments/route.ts:126-135; src/lib/gateways/theteller.ts (DEFAULT_BASE_URL = 'https://test.theteller.net')",
+      "description": "Payments route.ts:126-135: `else if (process.env.NODE_ENV !== 'production') { checkoutUrl = .../payment/callback?reference=...; gatewayTxnId = result.reference; ... }`. In any non-prod environment (staging, preview, dev, test), if TheTeller is unreachable or returns an error, the route synthesizes a fake checkout URL and a fake gatewayTxnId equal to the payment reference. The payment stays 'pending' and the merchant thinks the gateway call succeeded. This is convenient for the demo but dangerous in staging: a staging env that's accidentally pointed at the wrong gateway URL, or whose credentials are wrong, will silently succeed every payment — masking real integration bugs until prod. The `NODE_ENV !== 'production'` check is too broad — preview deployments, Vercel PR environments, and any docker image run with NODE_ENV unset all hit this branch.",
+      "fix": "Gate the dev fallback behind an explicit `THETELLER_ALLOW_FAKE_CHECKOUT=1` env var (default unset). In every other environment (including staging), treat a gateway failure as a failure: mark the payment `failed`, return 502, log the gateway error. Run a staging integration test that calls the real TheTeller test sandbox end-to-end on every deploy."
+    }
+  ],
+
+  "next_actions": [
+    "PR-1 (today): Rotate NEXORA_MASTER_KEY in .env to `openssl rand -hex 32`. Add a startup assertion that throws if NEXORA_MASTER_KEY is missing or < 32 chars in production. Revoke all keys minted under the leaked `super-secret-master-key-123`.",
+    "PR-2 (today): Add IP allowlist / master-key auth to GET /api/v1/sandbox-key, OR replace with a per-session ephemeral key issuer. Rotate NEXORA_SANDBOX_KEY to a value distinct from the demo test key.",
+    "PR-3 (this week): Switch prisma/schema.prisma to `provider = \"postgresql\"`, run `prisma migrate dev` against a local Postgres (use docker-compose up postgres), verify all routes pass against Postgres. Update Dockerfile to run `prisma migrate deploy` at build time.",
+    "PR-4 (this week): Add the four-method methodNotAllowed pattern (already in src/lib/api.ts:30-48) to every route handler. Add explicit OPTIONS handlers that return the accurate `Allow` header. Fixes the RFC 7231 violation.",
+    "PR-5 (this week): Add a request body size limit to parseBody (reject >256 KB with 413). Tighten zod schemas to `.strict()` to reject unknown fields.",
+    "PR-6 (next 2 weeks): Replace the in-memory rate limiter with @upstash/ratelimit (or ioredis Lua). Move the per-key rate-limit check to AFTER authenticate(). Recognise x-master-key in middleware for a separate admin tier.",
+    "PR-7 (next 2 weeks): Fix the idempotency TOCTOU — insert the IdempotencyRecord first with ON CONFLICT DO NOTHING, only proceed if insert returned a row, wrap in a Postgres advisory lock. Requires Postgres.",
+    "PR-8 (next sprint): Stand up a background worker (BullMQ + Redis, or Temporal) for: payroll run execution, webhook delivery backoff, KYC async verification, expired-idempotency-record GC.",
+    "PR-9 (next sprint): Implement real KYC vendor integration (Youverify or Smile Identity). Add startup assertion: KYC_LIVE=1 requires vendor credentials. Run sanctions/PEP screening.",
+    "PR-10 (next sprint): Add the missing CRUD endpoints: GET /v1/payments, /v1/payment-links persistence + CRUD, /v1/webhooks/endpoints/[id] GET/PATCH/DELETE, /v1/payroll/runs/[id] PATCH/execute, /v1/payments/[id]/refunds.",
+    "PR-11 (next sprint): Add signature verification on /v1/payments/callback. Add structured logging (pino) with request_id correlation. Initialize Sentry."
+  ]
+}

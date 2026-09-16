@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Twitter, Instagram, Youtube, Facebook, Send } from "lucide-react";
+import { toast } from "sonner";
 import { Logo } from "../logo";
 
 const COLS: { title: string; links: { label: string; href: string }[] }[] = [
@@ -58,10 +59,18 @@ export function Footer() {
             <p className="max-w-xs text-sm text-muted-foreground">
               Centralizing payment for Africa. One intelligent, secure dashboard for every way you pay and get paid.
             </p>
-            <form className="mt-2 flex items-center gap-2">
+            <form
+              className="mt-2 flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                toast.success("Subscribed!", { description: "You'll hear from us soon." });
+              }}
+            >
               <input
                 type="email"
+                required
                 placeholder="Your email"
+                aria-label="Email address"
                 className="h-10 flex-1 rounded-full border border-border/60 bg-card/40 px-4 text-sm outline-none placeholder:text-muted-foreground focus:border-brand/60"
               />
               <button
@@ -73,12 +82,19 @@ export function Footer() {
               </button>
             </form>
             <div className="mt-2 flex items-center gap-2">
-              {[Twitter, Instagram, Youtube, Facebook].map((Icon, i) => (
+              {[
+                { Icon: Twitter, href: "https://x.com/nexapay", label: "Nexa Pay on X" },
+                { Icon: Instagram, href: "https://instagram.com/nexapay", label: "Nexa Pay on Instagram" },
+                { Icon: Youtube, href: "https://youtube.com/@nexapay", label: "Nexa Pay on YouTube" },
+                { Icon: Facebook, href: "https://facebook.com/nexapay", label: "Nexa Pay on Facebook" },
+              ].map(({ Icon, href, label }) => (
                 <a
-                  key={i}
-                  href="#"
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-card/40 text-muted-foreground transition-colors hover:border-brand/50 hover:text-brand"
-                  aria-label="social link"
+                  aria-label={label}
                 >
                   <Icon className="h-4 w-4" />
                 </a>

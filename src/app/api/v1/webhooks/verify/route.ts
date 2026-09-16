@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { authenticate, errorResponse, okResponse, parseBody, auditLog } from "@/lib/api";
+import { authenticate, errorResponse, okResponse, parseBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { verifyWebhookSchema, formatZodError } from "@/lib/schemas";
 
 /**
@@ -123,3 +123,7 @@ export async function POST(req: NextRequest) {
     timestamp: nowSec,
   }, 201);
 }
+
+export async function GET(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

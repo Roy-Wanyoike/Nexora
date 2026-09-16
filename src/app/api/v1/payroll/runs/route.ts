@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody, toMinorUnit,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
-} from "@/lib/api";
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { createPayrollRunSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
 /** GET /api/v1/payroll/runs — list payroll runs scoped to key.userId. */
@@ -124,3 +123,5 @@ export async function POST(req: NextRequest) {
   await saveIdempotencyRecord(req, bodyHash, "POST /v1/payroll/runs", { data: responseBody }, 201, key.userId);
   return okResponse(responseBody, 201);
 }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

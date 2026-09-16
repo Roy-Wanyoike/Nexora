@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody, randomId, getOrCreateDemoCustomer,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
-} from "@/lib/api";
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { createForeignAccountSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
 const BANKS: Record<string, { name: string; routingLabel: string }> = {
@@ -139,3 +138,5 @@ export async function POST(req: NextRequest) {
   await saveIdempotencyRecord(req, bodyHash, "POST /v1/foreign-accounts", { data: responseBody }, 201, key.userId);
   return okResponse(responseBody, 201);
 }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

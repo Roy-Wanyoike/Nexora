@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, randomId,
-} from "@/lib/api";
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, randomId, methodNotAllowed } from "@/lib/api";
 import { createPaymentLinkSchema, formatZodError } from "@/lib/schemas";
 
 export async function POST(req: NextRequest) {
@@ -56,3 +55,7 @@ export async function POST(req: NextRequest) {
   await saveIdempotencyRecord(req, bodyHash, "POST /v1/payment-links", { data: responseBody }, 201, key.userId);
   return okResponse(responseBody, 201);
 }
+
+export async function GET(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

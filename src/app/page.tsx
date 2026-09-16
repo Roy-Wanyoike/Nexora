@@ -1,8 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { ThemeProvider } from "@/components/site/theme-provider";
-import { AuroraBackground } from "@/components/site/aurora-background";
 import { CursorGlow } from "@/components/site/cursor-glow";
 import { Nav } from "@/components/site/nav";
 import { Hero } from "@/components/site/sections/hero";
@@ -48,8 +46,7 @@ const DeveloperGateway = dynamic(() => import("@/components/site/sections/develo
 
 export default function Home() {
   return (
-    <ThemeProvider>
-      <AuroraBackground />
+    <>
       <CursorGlow />
       <Nav />
       <main className="relative flex min-h-screen flex-col">
@@ -72,6 +69,6 @@ export default function Home() {
         <CTA />
         <Footer />
       </main>
-    </ThemeProvider>
+    </>
   );
 }

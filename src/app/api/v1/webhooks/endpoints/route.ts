@@ -3,8 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import {
   authenticate, errorResponse, okResponse, parseBody, randomId,
-  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog,
-} from "@/lib/api";
+  checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { formatZodError } from "@/lib/schemas";
 
 const createEndpointSchema = z.object({
@@ -106,3 +105,5 @@ export async function GET(req: NextRequest) {
     })),
   });
 }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

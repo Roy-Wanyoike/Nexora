@@ -3,6 +3,8 @@ import { Inter, Sora, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/site/theme-provider";
+import { AuroraBackground } from "@/components/site/aurora-background";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -59,13 +61,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${sora.variable} ${jbm.variable} antialiased bg-background text-foreground font-sans`}
       >
-        {children}
-        
-        <SonnerToaster richColors position="top-right" />
+        <ThemeProvider>
+          <AuroraBackground />
+          {children}
+          <SonnerToaster richColors position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );
