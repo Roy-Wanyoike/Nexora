@@ -27,7 +27,10 @@ server.log
 
 # Tooling / docs not needed for the image
 README.md
-qa-audit-report.json
+CHANGELOG.md
+CONTRIBUTING.md
+ARCHITECTURE.md
+LICENSE
 Caddyfile
 docker-compose.yml
 Dockerfile

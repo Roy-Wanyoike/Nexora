@@ -84,3 +84,23 @@ Thumbs.db
 
 # tests shell scripts (not relevant to app)
 /tests/*.sh
+
+# AI-generated audit / QA reports (never belong in the public repo)
+*-audit-report.json
+*-audit-*.json
+audit-*.json
+qa-audit-report.json
+
+# AI-generated deliverables folder (used by the assistant locally)
+/download/
+
+# examples and mini-services folders (not part of the app)
+/examples/
+/mini-services/
+
+# ADR / forward-looking planning docs (kept out of the repo)
+/docs/adr/
+
+# worklog and other internal agent logs
+worklog.md
+*.worklog.md

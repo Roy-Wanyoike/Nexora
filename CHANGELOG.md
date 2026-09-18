@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 5 new pages: /cookies, /contact, /help, /status, /security
 - Catch-all JSON 404 handler for /api/v1/*
-- Architecture Decision Record for Go + Temporal backend (docs/adr/0001-go-temporal-backend.md)
 - LICENSE (MIT), CHANGELOG.md, CONTRIBUTING.md, ARCHITECTURE.md
 
 ### Fixed

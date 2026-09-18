@@ -70,10 +70,6 @@ security: remove hardcoded sandbox key fallback
 7. Request review from at least one team member
 8. Squash-merge to main
 
-## Architecture Decisions
-
-See `docs/adr/` for Architecture Decision Records. New ADRs should follow the template in `docs/adr/0001-go-temporal-backend.md`.
-
 ## Security
 
 - **Never** commit secrets, API keys, or passwords

@@ -82,10 +82,6 @@ See `prisma/schema.prisma` for the full schema. Key relationships:
 - Exponential backoff: 1m, 5m, 30m, 2h, 6h (5 attempts max)
 - Records `delivered`, `attempts`, `lastAttemptAt`, `responseCode` on `WebhookEvent`
 
-## Future Architecture (Go + Temporal)
-
-See `docs/adr/0001-go-temporal-backend.md` for the decision to adopt Golang + Temporal for payment orchestration. The migration plan uses the strangler-fig pattern over 6 phases.
-
 ## Deployment
 
 - **Docker**: Multi-stage build (`Dockerfile`) → `oven/bun:1.1-alpine` runtime
