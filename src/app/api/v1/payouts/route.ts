@@ -159,5 +159,5 @@ export async function POST(req: NextRequest) {
   }
   return errorResponse("Failed to create payout after 5 attempts", 500, "internal_error");
 }
-export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
-export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }

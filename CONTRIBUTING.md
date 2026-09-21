@@ -5,8 +5,8 @@ Thank you for your interest in contributing! This guide covers setup, convention
 ## Quick Start
 
 ```bash
-git clone https://github.com/Roy-Wanyoike/Nexa Pay.git
-cd Nexa Pay
+git clone https://github.com/Roy-Wanyoike/Nexora.git
+cd Nexora
 bun install
 cp env.example .env  # Fill in required values
 bun run db:push

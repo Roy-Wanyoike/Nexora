@@ -178,16 +178,6 @@ export async function getOrCreateDemoCustomer(): Promise<{ id: string }> {
   return { id: c.id };
 }
 
-/** Validate that an amount is a positive finite number within bounds. */
-export function isValidAmount(amount: any, max = 1_000_000): boolean {
-  return (
-    typeof amount === "number" &&
-    Number.isFinite(amount) &&
-    amount > 0 &&
-    amount <= max
-  );
-}
-
 // ── Idempotency ─────────────────────────────────────────────────────
 
 /**

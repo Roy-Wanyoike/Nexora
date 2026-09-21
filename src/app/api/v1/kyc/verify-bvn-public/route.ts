@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createHash } from "node:crypto";
+import { z } from "zod";
+import { auditLog, methodNotAllowed } from "@/lib/api";
+import { formatZodError } from "@/lib/schemas";
+
+const verifyBvnPublicSchema = z.object({
+  bvn: z.string().regex(/^\d{11}$/, "BVN must be exactly 11 digits"),
+});
 
 /**
  * POST /api/v1/kyc/verify-bvn-public
  * Public KYC verification for the /kyc page demo.
- * Uses the NEXORA_SANDBOX_KEY internally — no key exposed to the client.
+ *
+ * Gates on NEXORA_SANDBOX_KEY being configured server-side; the key
+ * itself is never sent to the client. Abuse is mitigated by the global
+ * rate limiter in src/middleware.ts (30/min per IP for anon callers).
+ *
+ * Returns 503 when KYC is not configured for the demo.
  */
 export async function POST(req: NextRequest) {
   const sandboxKey = process.env.NEXORA_SANDBOX_KEY;
@@ -17,21 +29,15 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!body || !body.bvn) {
+  const parsed = verifyBvnPublicSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "BVN is required", code: "validation_error" },
+      { error: "Validation failed", code: "validation_error", fields: formatZodError(parsed.error) },
       { status: 422 }
     );
   }
 
-  const bvn = String(body.bvn);
-  if (!/^\d{11}$/.test(bvn)) {
-    return NextResponse.json(
-      { error: "BVN must be exactly 11 digits", code: "validation_error" },
-      { status: 422 }
-    );
-  }
-
+  const bvn = parsed.data.bvn;
   // Hash BVN (never store raw)
   const bvnHash = createHash("sha256").update(bvn).digest("hex");
 
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Dev mode: auto-verify
+  // Dev mode: auto-verify. Prod should require a real vendor (Youverify/Smile Identity).
   const updated = await db.customer.update({
     where: { id: customer.id },
     data: {
@@ -67,6 +73,14 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await auditLog({
+    action: "kyc.verify_bvn_public",
+    resourceType: "customer",
+    resourceId: customer.id,
+    req,
+    metadata: { kyc_status: "verified", kyc_tier: 1 },
+  });
+
   return NextResponse.json({
     data: {
       customer_id: updated.id,
@@ -76,3 +90,8 @@ export async function POST(req: NextRequest) {
     },
   }, { status: 201 });
 }
+
+export async function GET(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PUT(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

@@ -50,15 +50,22 @@ ENV NODE_ENV=production \
 
 # Create a non-root user (the bun image already ships a `bun` user with
 # uid 1000, but make sure /app is owned by it).
-RUN chown -R bun:bun /app
+RUN mkdir -p /app && chown -R bun:bun /app
 
 # Standalone Next.js output bundles the minimal server + node_modules.
+# `COPY <src>/ ./` copies the *contents* of standalone into /app, so
+# server.js lands at /app/server.js — not /app/.next/standalone/server.js.
 COPY --from=builder --chown=bun:bun /app/.next/standalone ./
 COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 COPY --from=builder --chown=bun:bun /app/public ./public
+COPY --from=builder --chown=bun:bun /app/prisma ./prisma
 
 USER bun
 
 EXPOSE 3000
 
-CMD ["bun", ".next/standalone/server.js"]
+# k8s/Docker health probe — `wget` ships in busybox on alpine.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+CMD ["bun", "server.js"]

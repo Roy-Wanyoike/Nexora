@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "@/components/site/theme-provider";
-import { AuroraBackground } from "@/components/site/aurora-background";
 import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/sections/footer";
 
@@ -14,8 +12,7 @@ const LAST_UPDATED = "12 January 2026";
 
 export default function TermsPage() {
   return (
-    <ThemeProvider>
-      <AuroraBackground />
+    <>
       <Nav />
       <main className="relative flex min-h-screen flex-col">
         <section className="relative py-24 sm:py-28">
@@ -284,7 +281,7 @@ export default function TermsPage() {
         </section>
         <Footer />
       </main>
-    </ThemeProvider>
+    </>
   );
 }
 

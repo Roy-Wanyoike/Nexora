@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { authenticate, errorResponse, okResponse } from "@/lib/api";
+import { authenticate, errorResponse, okResponse, methodNotAllowed } from "@/lib/api";
 
 /**
  * GET /api/v1/payments/:id
@@ -51,3 +51,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     updated_at: payment.updatedAt.toISOString(),
   });
 }
+
+export async function POST(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function PUT(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }

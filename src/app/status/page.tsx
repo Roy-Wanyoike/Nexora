@@ -3,8 +3,9 @@ export const metadata: Metadata = { title: "System Status — Nexa Pay", descrip
 export const dynamic = "force-dynamic";
 
 async function getHealth() {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   try {
-    const res = await fetch("http://localhost:3000/api/health", { cache: "no-store" });
+    const res = await fetch(`${base}/api/health`, { cache: "no-store" });
     if (!res.ok) return { status: "degraded", db: "down" };
     return await res.json();
   } catch {

@@ -25,7 +25,7 @@
 ┌──────────────────────────────────────────────────────────────┐
 │                    Prisma ORM + SQLite (dev)                   │
 │                    Prisma ORM + PostgreSQL (prod)              │
-│  12 Models: User · ApiKey · Customer · Payment · VirtualCard  │
+│  13 Models: User · ApiKey · Customer · Payment · VirtualCard  │
 │  · ForeignAccount · Payout · Transaction · PayrollRun         │
 │  · WebhookEvent · WebhookEndpoint · AuditLog · IdempotencyRecord │
 └──────────────────────────────────────────────────────────────┘
@@ -48,7 +48,8 @@
 
 - **API Keys**: `nxp_test_*` / `nxp_live_*` → SHA-256 hashed → stored in `ApiKey.keyHash`
 - **Master Key**: `NEXORA_MASTER_KEY` env var → required for `/api/v1/api-keys` management
-- **Webhook Secret**: `NEXORA_WEBHOOK_SECRET` → HMAC-SHA256 signing for outbound webhooks
+- **Webhook signing secret**: per-endpoint `WebhookEndpoint.secret` → HMAC-SHA256 signing for outbound webhooks (stored plaintext for demo; encrypt at rest for prod)
+- **Session JWT**: signed with `NEXTAUTH_SECRET` (jose HS256); `NEXORA_WEBHOOK_SECRET` is a deprecated fallback for dev only
 
 ## Idempotency
 

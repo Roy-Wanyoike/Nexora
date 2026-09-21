@@ -27,6 +27,7 @@ const jbm = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: "Nexa Pay — One switch for every payment.",
   description:
     "The African payment switch. Manage every payment method from one secure API — send money, open real USD, GBP and EUR bank accounts, create virtual cards, buy eSIMs and run business payroll. Build with our REST API, webhooks and SDKs.",

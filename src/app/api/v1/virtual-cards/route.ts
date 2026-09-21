@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
-  authenticate, errorResponse, okResponse, parseBody, randomId, randomLast4,
+  authenticate, errorResponse, okResponse, parseBody, randomLast4,
   getOrCreateDemoCustomer, checkIdempotency, saveIdempotencyRecord, hashRequestBody, auditLog, methodNotAllowed } from "@/lib/api";
 import { createVirtualCardSchema, formatZodError, listTransactionsSchema } from "@/lib/schemas";
 
@@ -120,5 +120,5 @@ export async function POST(req: NextRequest) {
   await saveIdempotencyRecord(req, bodyHash, "POST /v1/virtual-cards", { data: responseBody }, 201, key.userId);
   return okResponse(responseBody, 201);
 }
-export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
-export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }

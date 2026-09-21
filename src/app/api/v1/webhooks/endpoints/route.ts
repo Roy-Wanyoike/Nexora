@@ -105,5 +105,5 @@ export async function GET(req: NextRequest) {
     })),
   });
 }
-export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
-export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET", "POST"]); }

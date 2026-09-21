@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticate, errorResponse, okResponse, parseBody, methodNotAllowed } from "@/lib/api";
 import { scoreFraud } from "@/lib/fraud-detection";
 import { z } from "zod";
+import { formatZodError } from "@/lib/schemas";
 
 const fraudSchema = z.object({
   amount: z.number().finite().positive(),
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = fraudSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
 
   const result = scoreFraud({
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     timestamp: new Date(),
   });
 
-  return okResponse(result, 201);
+  return okResponse(result, 200);
 }
 
 export async function GET(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { authenticate, errorResponse, okResponse, auditLog } from "@/lib/api";
+import { authenticate, errorResponse, okResponse, auditLog, methodNotAllowed } from "@/lib/api";
 import { formatZodError } from "@/lib/schemas";
 
 const patchPayoutSchema = z.object({
@@ -85,14 +85,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const updated = await db.payout.update({
     where: { id: payout.id },
-    data: { status: "failed" }, // cancelled → recorded as failed (terminal)
+    data: { status: "cancelled" },
   });
 
   // Mirror state on the ledger row.
   await db.transaction
     .updateMany({
       where: { type: "payout", amount: payout.amount, currency: payout.currency, status: "pending", userId: key.userId },
-      data: { status: "failed" },
+      data: { status: "cancelled" },
     })
     .catch(() => {});
 
@@ -119,3 +119,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     updated_at: updated.updatedAt.toISOString(),
   });
 }
+
+export async function POST(req: NextRequest) { return methodNotAllowed(req, ["GET", "PATCH"]); }
+export async function PUT(req: NextRequest) { return methodNotAllowed(req, ["GET", "PATCH"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET", "PATCH"]); }

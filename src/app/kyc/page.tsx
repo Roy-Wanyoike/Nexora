@@ -1,8 +1,6 @@
 "use client";
 
 import { ShieldCheck, Lock, FileCheck, Eye } from "lucide-react";
-import { ThemeProvider } from "@/components/site/theme-provider";
-import { AuroraBackground } from "@/components/site/aurora-background";
 import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/sections/footer";
 import { KycForm } from "@/components/site/sections/kyc-form";
@@ -27,8 +25,7 @@ const TRUST = [
 
 export default function KycPage() {
   return (
-    <ThemeProvider>
-      <AuroraBackground />
+    <>
       <Nav />
       <main className="relative flex min-h-screen flex-col">
         <section className="relative pt-28 pb-12 sm:pt-32">
@@ -83,6 +80,6 @@ export default function KycPage() {
         </section>
         <Footer />
       </main>
-    </ThemeProvider>
+    </>
   );
 }

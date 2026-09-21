@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "@/components/site/theme-provider";
-import { AuroraBackground } from "@/components/site/aurora-background";
 import { Nav } from "@/components/site/nav";
 import { Footer } from "@/components/site/sections/footer";
 
@@ -14,8 +12,7 @@ const LAST_UPDATED = "12 January 2026";
 
 export default function PrivacyPage() {
   return (
-    <ThemeProvider>
-      <AuroraBackground />
+    <>
       <Nav />
       <main className="relative flex min-h-screen flex-col">
         <section className="relative py-24 sm:py-28">
@@ -232,7 +229,7 @@ export default function PrivacyPage() {
                 </p>
               </Block>
 
-              <Block id="children" title="11. Children&apos;s Data">
+              <Block id="children" title="11. Children's Data">
                 <p>
                   The Services are not directed at children under the age of eighteen (18), and we do
                   not knowingly collect personal data from children. If you believe that we have
@@ -279,7 +276,7 @@ export default function PrivacyPage() {
         </section>
         <Footer />
       </main>
-    </ThemeProvider>
+    </>
   );
 }
 

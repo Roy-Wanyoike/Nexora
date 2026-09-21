@@ -9,6 +9,8 @@ dist
 db
 *.db
 *.db-journal
+upload
+uploads
 
 # Version control & misc
 .git
@@ -35,3 +37,17 @@ Caddyfile
 docker-compose.yml
 Dockerfile
 .dockerignore
+
+# Agent / AI / scratch dirs (kept out of the image)
+skills
+agent-ctx
+.zscripts
+tool-results
+tests
+examples
+mini-services
+download
+docs
+scripts
+worklog.md
+*.worklog.md

@@ -32,6 +32,25 @@ services:
     networks:
       - internal
 
+  # One-shot init: pushes the Prisma schema to Postgres before the app starts.
+  # Re-runs on `docker compose up` if the schema has drifted; idempotent.
+  migrate:
+    build: .
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nexora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nexora}?schema=public
+      NODE_ENV: production
+    # `db:push` is acceptable here because the app owns the schema. For
+    # long-lived prod DBs with migrations, switch to `prisma migrate deploy`.
+    command: ["bunx", "prisma", "db", "push", "--accept-data-loss"]
+    networks:
+      - internal
+
   app:
     build: .
     restart: unless-stopped
@@ -40,6 +59,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - .env
     environment:
@@ -52,15 +73,34 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    ports:
-      - "3000:3000"
+    # No host port — Caddy fronts the app on :80/:443. Uncomment to expose directly.
+    # ports:
+    #   - "3000:3000"
     networks:
       - internal
+      - edge
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
       - edge
 
 volumes:
   postgres_data:
   redis_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   internal:

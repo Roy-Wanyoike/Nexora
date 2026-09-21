@@ -20,10 +20,10 @@ Built with **Next.js 16**, **TypeScript**, **Tailwind CSS 4**, **Prisma**, and *
 
 ### Developer Gateway
 - **REST API** (`/api/v1/*`) with Bearer auth
-- **8 endpoints**: payments, payment-links, virtual-cards, foreign-accounts, payouts, transactions, payroll/runs, webhooks/verify
-- **API key management** — create/revoke test & live keys
-- **HMAC-signed webhooks** — 8 event types
-- **SDKs** — cURL, Node.js, Python, PHP, Go code samples
+- **8 core endpoints**: payments, payment-links, virtual-cards, foreign-accounts, payouts, transactions, payroll/runs, webhooks/verify (plus api-keys, auth, KYC, fraud/score, routing, sandbox-key, health)
+- **API key management** — create/revoke test & live keys (master-key protected)
+- **HMAC-signed webhooks** — 8 event types, per-endpoint secrets, exponential backoff
+- **SDKs** — cURL, JavaScript, Python, PHP, Go code samples
 - **Live endpoint explorer** — send real requests against the DB
 
 ### Design
@@ -47,7 +47,7 @@ cp env.example .env
 # 3. Create the database
 bun run db:push
 
-# 4. Seed demo data (2 API keys, customer, cards, accounts, transactions)
+# 4. Seed demo data (2 API keys, customer, cards, accounts, transactions, payroll run)
 bun run scripts/seed.ts
 
 # 5. Start dev server
@@ -79,29 +79,47 @@ curl -X POST http://localhost:3000/api/v1/payments \
 src/
 ├── app/
 │   ├── api/v1/                    # REST API routes
-│   │   ├── payments/route.ts      # POST /v1/payments
-│   │   ├── payment-links/route.ts # POST /v1/payment-links
-│   │   ├── virtual-cards/route.ts # POST /v1/virtual-cards
-│   │   ├── foreign-accounts/route.ts
-│   │   ├── payouts/route.ts
-│   │   ├── transactions/route.ts  # GET /v1/transactions
-│   │   ├── payroll/runs/route.ts
-│   │   ├── webhooks/verify/route.ts
-│   │   └── api-keys/              # CRUD for API keys
+│   │   ├── payments/               # POST /, GET /[id], GET /callback
+│   │   ├── payment-links/route.ts  # POST /v1/payment-links
+│   │   ├── virtual-cards/          # POST /, GET /, GET /[id], PATCH /[id]
+│   │   ├── foreign-accounts/       # POST /, GET /, GET /[id]
+│   │   ├── payouts/                # POST /, GET /, GET /[id], PATCH /[id]
+│   │   ├── transactions/route.ts   # GET /v1/transactions
+│   │   ├── payroll/runs/           # POST /, GET /, GET /[id]
+│   │   ├── webhooks/               # POST /verify, GET+POST /endpoints
+│   │   ├── api-keys/               # GET+POST /, DELETE /[id]  (master-key auth)
+│   │   ├── auth/                   # POST /login, /signup, /logout; GET /me (cookie auth)
+│   │   ├── kyc/                   # POST /verify-bvn, POST /verify-bvn-public
+│   │   ├── fraud/score/route.ts   # POST (stateless fraud score)
+│   │   ├── routing/route.ts       # POST (stateless routing decision)
+│   │   ├── sandbox-key/route.ts   # GET (public, returns key prefix only)
+│   │   └── [...path]/route.ts     # catch-all JSON 404
+│   ├── health/route.ts            # GET /api/health (k8s probe)
+│   ├── (page routes)              # /, /login, /signup, /dashboard, /docs, /kyc, /contact, /help, /status, /security, /privacy, /terms, /cookies
 │   ├── globals.css                # Tailwind + theme tokens
 │   ├── layout.tsx                 # Fonts (Inter + Sora + JetBrains Mono)
-│   └── page.tsx                   # Homepage (all sections)
+│   ├── error.tsx                  # Error boundary
+│   └── not-found.tsx              # 404 page
 ├── components/
-│   ├── site/                      # Nav, Footer, AuroraBackground, etc.
-│   │   └── sections/              # Hero, Features, AppDemo, DeveloperGateway, etc.
+│   ├── site/                      # Nav, Footer, AuroraBackground, ThemeProvider, etc.
+│   │   └── sections/              # Hero, Features, AppDemo, DeveloperGateway, etc. (19 sections)
 │   └── ui/                        # shadcn/ui primitives
 ├── lib/
-│   ├── api.ts                     # Shared API helpers (auth, parseBody, etc.)
-│   └── db.ts                      # Prisma client
+│   ├── api.ts                     # Shared API helpers (auth, parseBody, idempotency, auditLog)
+│   ├── auth.ts                    # JWT sessions (jose) + bcrypt password hashing
+│   ├── db.ts                      # Prisma client (singleton)
+│   ├── schemas.ts                 # Zod validation schemas
+│   ├── smart-router.ts            # Multi-rail payment routing
+│   ├── fraud-detection.ts         # Rule-based fraud scoring
+│   ├── gateways/theteller.ts      # TheTeller (PaySwitch Ghana) integration
+│   ├── webhooks/dispatcher.ts     # Outbound HMAC-signed webhook dispatcher
+│   └── utils.ts                   # cn() helper
+├── middleware.ts                  # Rate limiting, request IDs, security headers
 prisma/
-└── schema.prisma                  # 10 models (User, ApiKey, Payment, etc.)
+└── schema.prisma                  # 13 models (User, ApiKey, Customer, Payment, VirtualCard, ForeignAccount, Payout, Transaction, PayrollRun, WebhookEndpoint, WebhookEvent, AuditLog, IdempotencyRecord)
 scripts/
-└── seed.ts                        # Demo data seeder
+├── seed.ts                        # Demo data seeder
+└── test-api.sh                    # API smoke tests
 ```
 
 ---
@@ -155,7 +173,7 @@ See **[env.example](./env.example)** for the full list. Critical ones:
 | `THETELLER_API_USER` / `_API_KEY` / `_MERCHANT_ID` | PaySwitch Ghana gateway | For payments |
 | `PAYSTACK_SECRET_KEY` | Paystack gateway | For payments (alt) |
 | `FLW_SECRET_KEY` | Flutterwave gateway | For payments (alt) |
-| `NEXTAUTH_SECRET` | User session signing | For auth |
+| `NEXTAUTH_SECRET` | User JWT session signing (jose) | For auth |
 | `RESEND_API_KEY` | Transactional email | For notifications |
 | `SENTRY_DSN` | Error tracking | For prod |
 
@@ -164,33 +182,43 @@ See **[env.example](./env.example)** for the full list. Critical ones:
 ## 🛠️ Scripts
 
 ```bash
-bun run dev          # Start dev server (port 3000)
-bun run lint         # ESLint
-bun run db:push      # Push schema to DB (dev only)
-bun run db:generate  # Regenerate Prisma client
-bun run db:migrate   # Create a migration (dev)
-bun run db:reset     # Drop all data (dev only!)
-bun run scripts/seed.ts  # Seed demo data
+bun run dev                # Start dev server (port 3000)
+bun run lint               # ESLint
+bun run typecheck          # TypeScript type-check (no emit)
+bun run db:push            # Push schema to DB (dev only)
+bun run db:generate        # Regenerate Prisma client
+bun run db:migrate         # Create a migration (dev)
+bun run db:reset           # Drop all data (dev only!)
+bun run scripts/seed.ts    # Seed demo data
+bash scripts/test-api.sh   # API smoke tests
 ```
 
 ---
 
-## 🚦 Known limitations (from audit)
+## 📦 Current State
 
-This is a **demo** build. Before production:
+This is a working demo build. Already implemented:
 
-- [ ] **Hash API keys at rest** (currently plaintext — see audit C8)
-- [ ] **Switch SQLite → Postgres** for concurrent writes (audit H18)
-- [ ] **Add middleware.ts** with rate limiting + request IDs (audit H10, M30)
-- [ ] **Add idempotency-key header support** beyond reference dedup (audit C3)
-- [ ] **Add user auth (NextAuth.js)** for per-tenant isolation (audit C2)
-- [ ] **Add error boundaries** (`src/app/error.tsx`) (audit C2 frontend)
-- [ ] **Replace `ignoreBuildErrors: true`** in next.config.ts (audit C3 frontend)
-- [ ] **Add zod validation** on all routes (audit H15 backend)
-- [ ] **HTTPS enforcement** + HSTS headers (audit C7)
-- [ ] **Audit log model** for compliance (audit M28)
+- **API key security** — SHA-256 hashed at rest, timing-safe comparison, no plaintext storage
+- **Rate limiting** — 30/min anon, 100/min test, 1000/min live (in-memory; wire Upstash for prod)
+- **Idempotency-Key** — 24h cache, 409 on key+body mismatch, reference dedup
+- **User auth** — JWT sessions via `jose` + bcrypt, cookie-based for the web app
+- **Error boundaries** — `error.tsx` and `not-found.tsx`
+- **Zod validation** — on all API routes with field-level error details
+- **Security headers** — HSTS (preload, 2y), CSP, X-Frame-Options DENY, nosniff, Referrer-Policy
+- **Audit log** — `AuditLog` model with fire-and-forget writes on all state-changing actions
+- **Outbound webhooks** — HMAC-SHA256 signed, exponential backoff (1m, 5m, 30m, 2h, 6h)
+- **TheTeller gateway** — initiate + verify + callback
 
-Full audit reports are in the conversation history.
+Before production, harden:
+
+- [ ] **Switch SQLite → Postgres** for concurrent writes (schema is provider-portable)
+- [ ] **Wire Upstash Redis** for cross-instance rate limiting
+- [ ] **Encrypt `WebhookEndpoint.secret`** at rest (currently plaintext for demo)
+- [ ] **Real KYC vendor** (Youverify/Smile Identity) — `verifyBvnViaVendor()` is a stub
+- [ ] **Per-tenant Customer records** — demo currently shares a single `getOrCreateDemoCustomer` row
+- [ ] **Brute-force protection** on `/auth/login` (per-email lockout)
+- [ ] **CSP nonces** instead of `unsafe-inline`
 
 ---
 

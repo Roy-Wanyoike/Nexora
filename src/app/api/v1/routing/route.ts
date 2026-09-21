@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticate, errorResponse, okResponse, parseBody, methodNotAllowed } from "@/lib/api";
 import { routePayment, type Rail } from "@/lib/smart-router";
 import { z } from "zod";
+import { formatZodError } from "@/lib/schemas";
 
 const routingSchema = z.object({
   amount: z.number().finite().positive(),
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = routingSchema.safeParse(body);
   if (!parsed.success) {
-    return errorResponse("Validation failed", 422, "validation_error");
+    return errorResponse("Validation failed", 422, "validation_error", { fields: formatZodError(parsed.error) });
   }
 
   const decision = routePayment({
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     channel: parsed.data.channel as Rail | undefined,
   });
 
-  return okResponse(decision, 201);
+  return okResponse(decision, 200);
 }
 
 export async function GET(req: NextRequest) { return methodNotAllowed(req, ["POST"]); }

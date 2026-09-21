@@ -1,4 +1,13 @@
-:81 {
+# Caddyfile for the Nexora app.
+# - In compose, Caddy and the app are separate containers, so we use the
+#   service DNS name `app:3000` (not localhost:3000).
+# - Listen on :80 so Caddy auto-issues a Let's Encrypt cert when you point
+#   a real domain at this host. For local dev, set the address to `:80`
+#   (HTTP-only) and rely on the loopback exception.
+# - To enable auto-HTTPS with a real domain, replace `:80` with the
+#   hostname (e.g. `nexapay.example.com`).
+
+:80 {
 	# Security note: the previous @transform_port_query handler allowed any
 	# client to pass `?XTransformPort=<port>` and have Caddy reverse_proxy to
 	# localhost:<port>. This was an open SSRF (and local-port-scanning)
@@ -6,13 +15,17 @@
 	# localhost (databases, admin panels, metrics endpoints, etc.) that are
 	# not otherwise exposed. It has been removed entirely. The single
 	# reverse_proxy below routes everything (including /api/*) to the Next.js
-	# app on :3000.
+	# app on :3000 inside the compose network.
 	handle {
-		reverse_proxy localhost:3000 {
+		reverse_proxy app:3000 {
 			header_up Host {host}
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Real-IP {remote_host}
+			# WebSocket support: Caddy auto-promotes WS upgrades; this is
+			# explicit for clarity.
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
 		}
 	}
 }

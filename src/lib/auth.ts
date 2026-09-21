@@ -6,7 +6,16 @@ const SESSION_COOKIE = "nexapay-session";
 const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
 
 function getSecret(): Uint8Array {
-  const secret = process.env.NEXTAUTH_SECRET || process.env.NEXORA_WEBHOOK_SECRET || "dev-session-secret-change-in-prod";
+  const secret = process.env.NEXTAUTH_SECRET || process.env.NEXORA_WEBHOOK_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "NEXTAUTH_SECRET (or NEXORA_WEBHOOK_SECRET fallback) is required in production. Set it in your environment."
+      );
+    }
+    // Dev-only fallback. Throws in prod to prevent JWT forgery via a publicly-known secret.
+    return new TextEncoder().encode("dev-session-secret-change-in-prod");
+  }
   return new TextEncoder().encode(secret);
 }
 
@@ -31,6 +40,8 @@ export async function createSession(payload: SessionPayload): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
+    .setIssuer("nexapay")
+    .setAudience("nexapay-api")
     .setExpirationTime(`${SESSION_DURATION}s`)
     .sign(getSecret());
 }
@@ -38,7 +49,10 @@ export async function createSession(payload: SessionPayload): Promise<string> {
 /** Verify a JWT session token and return the payload. */
 export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, getSecret(), {
+      issuer: "nexapay",
+      audience: "nexapay-api",
+    });
     return {
       userId: payload.userId as string,
       email: payload.email as string,

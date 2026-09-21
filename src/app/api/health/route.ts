@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { methodNotAllowed } from "@/lib/api";
+import packageJson from "@/../package.json";
 
 export const dynamic = "force-dynamic";
 
-const VERSION = "0.2.1";
+const VERSION = packageJson.version;
 
 /**
  * GET /api/health
@@ -44,3 +46,8 @@ export async function GET() {
     );
   }
 }
+
+export async function POST(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function PUT(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function PATCH(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
+export async function DELETE(req: NextRequest) { return methodNotAllowed(req, ["GET"]); }
