@@ -33,7 +33,7 @@ RUN bun run db:generate
 # Build the standalone Next.js server.
 # `next build` with `output: "standalone"` emits `.next/standalone`,
 # `.next/static`, and we copy `public/` next to it (see package.json build).
-RUN bun run build
+RUN bun run build:standalone
 
 # ──────────────────────────────────────────────────────────────────────
 # Stage 3 — runner
