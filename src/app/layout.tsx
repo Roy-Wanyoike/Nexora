@@ -1,28 +1,36 @@
 import type { Metadata } from "next";
-import { Inter, Sora, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/site/theme-provider";
 import { AuroraBackground } from "@/components/site/aurora-background";
 
-const inter = Inter({
+// Self-hosted variable fonts (latin subset) — replaces next/font/google so
+// cold builds are hermetic. next/font/google fetches from fonts.googleapis.com
+// at build time; that fetch is the only network-dependent step in `next build`
+// and it intermittently fails Vercel cold builds ("Deployment has failed",
+// reproduced locally 2026-10-13: jetbrains_mono module-not-found on a cold
+// build that passed on retry). Same CSS variables, same subsets, zero fetch.
+
+const inter = localFont({
+  src: "./fonts/inter-latin-var.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
+  weight: "100 900",
   display: "swap",
 });
 
-const sora = Sora({
+const sora = localFont({
+  src: "./fonts/sora-latin-var.woff2",
   variable: "--font-sora",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: "100 800",
   display: "swap",
 });
 
-const jbm = JetBrains_Mono({
+const jbm = localFont({
+  src: "./fonts/jetbrains-mono-latin-var.woff2",
   variable: "--font-jbm",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: "100 800",
   display: "swap",
 });
 
